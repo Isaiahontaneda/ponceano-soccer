@@ -6,7 +6,7 @@ const esProduccion = process.env.NODE_ENV === "production";
 // - 'unsafe-inline' en scripts y estilos es necesario porque Next.js inserta scripts en línea
 //   para hidratar las páginas y React usa estilos en línea. Una CSP más estricta (con "nonce")
 //   exigiría renderizado dinámico de todas las páginas y desactivar el prerenderizado de
-//   Cache Components, así que se omite a propósito (ver docs/informe-final.md).
+//   Cache Components, así que se omite a propósito.
 const csp = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline'",
