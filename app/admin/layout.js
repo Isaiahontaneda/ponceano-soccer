@@ -1,4 +1,4 @@
-import PanelAdmin from "./PanelAdmin";
+import PanelAdmin from "@/frontend/componentes/PanelAdmin";
 
 export const metadata = {
   title: "Ponceano Soccer — Administración",

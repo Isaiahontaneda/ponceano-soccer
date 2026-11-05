@@ -1,6 +1,6 @@
 import "server-only";
-import { crearClienteServidor } from "@/lib/supabase/server";
-import { crearClienteAdmin } from "@/lib/supabase/admin";
+import { crearClienteServidor } from "@/backend/supabase/server";
+import { crearClienteAdmin } from "@/backend/supabase/admin";
 
 // Devuelve el perfil del usuario logueado (con su rol real) o null.
 // El rol SIEMPRE se lee de la tabla "usuarios" con el id de la sesión, nunca del navegador.

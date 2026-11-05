@@ -41,6 +41,13 @@ const nextConfig = {
   cacheComponents: true,
   partialPrefetching: true,
   poweredByHeader: false,
+  // Oculta el indicador de Next.js que aparece abajo a la izquierda en desarrollo.
+  devIndicators: false,
+  // Desactiva la validación automática de "navegación instantánea" que muestra el aviso
+  // "1 Insight" en desarrollo (solo valida las páginas que lo pidan de forma explícita).
+  experimental: {
+    instantInsights: { validationLevel: "manual-warning" },
+  },
 
   async headers() {
     return [

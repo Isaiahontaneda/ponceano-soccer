@@ -1,4 +1,4 @@
-import { comparacionesActivas } from "@/lib/validaciones/tarifa";
+import { comparacionesActivas } from "@/backend/validaciones/tarifa";
 
 // Avisa si todavía no existe la tarifa base (sin ella no se pueden calcular precios).
 // "tarifas" es la lista de tarifas con "tipoCodigo".

@@ -1,0 +1,586 @@
+/* Estilos globales de Ponceano Soccer.
+   Colores del logo: verde #005010 y naranja #ff642c.
+   El naranja solo se usa en bordes y detalles, nunca como color de texto sobre blanco. */
+
+:root {
+  --verde: #005010;
+  --verde-oscuro: #003a0b;
+  --verde-claro: #e6f1e8;
+  --naranja: #ff642c;
+
+  --texto: #1a1a1a;
+  --texto-suave: #4a4a4a;
+  --fondo: #f5f4ef;
+  --blanco: #ffffff;
+  --borde: #c9c8bf;
+  --borde-campo: #6f6f68;
+  --foco: #1f4fd8;
+
+  --rojo: #a8231b;
+  --rojo-claro: #fdecea;
+  --aviso: #7a3a00;
+  --aviso-claro: #fff4e0;
+}
+
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+body {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  color: var(--texto);
+  background: var(--fondo);
+  font-family: var(--font-geist-sans), Arial, sans-serif;
+  line-height: 1.5;
+}
+
+main {
+  flex: 1;
+}
+
+h1 {
+  font-size: 1.6rem;
+}
+
+h2 {
+  font-size: 1.2rem;
+  margin-bottom: 12px;
+}
+
+a {
+  color: var(--verde);
+}
+
+:focus-visible {
+  outline: 3px solid var(--foco);
+  outline-offset: 2px;
+}
+
+/* ---------- Encabezado ---------- */
+
+.encabezado {
+  background: var(--blanco);
+  border-bottom: 3px solid var(--naranja);
+}
+
+.encabezado__interior {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 24px;
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 8px 16px;
+}
+
+.encabezado__marca img {
+  display: block;
+  height: 52px;
+  width: auto;
+}
+
+.nav {
+  flex: 1 1 100%;
+  order: 3;
+}
+
+.nav__lista {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  list-style: none;
+}
+
+.nav a {
+  display: block;
+  padding: 8px 12px;
+  color: var(--texto);
+  text-decoration: none;
+  border-bottom: 3px solid transparent;
+}
+
+.nav a:hover {
+  background: var(--verde-claro);
+}
+
+.nav a[aria-current="page"] {
+  font-weight: bold;
+  color: var(--verde);
+  border-bottom-color: var(--verde);
+}
+
+.encabezado__usuario {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.9rem;
+}
+
+.encabezado__rol {
+  color: var(--texto-suave);
+}
+
+/* ---------- Páginas ---------- */
+
+.pagina {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 24px 16px 48px;
+}
+
+.pagina__cabecera {
+  margin-bottom: 20px;
+}
+
+.pagina__intro {
+  color: var(--texto-suave);
+}
+
+.tarjeta {
+  background: var(--blanco);
+  border: 1px solid var(--borde);
+  border-radius: 6px;
+  padding: 20px;
+  margin-bottom: 24px;
+}
+
+.cargando {
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--texto-suave);
+}
+
+/* ---------- Portada ---------- */
+
+.resumen {
+  display: flex;
+  gap: 24px;
+  margin: 16px 0;
+}
+
+.modulos {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.modulo {
+  display: block;
+  padding: 16px;
+  color: var(--texto);
+  text-decoration: none;
+  background: var(--blanco);
+  border: 1px solid var(--borde);
+  border-radius: 6px;
+}
+
+.modulo:hover {
+  background: var(--verde-claro);
+}
+
+.modulo h2 {
+  color: var(--verde);
+  margin-bottom: 4px;
+}
+
+.modulo p {
+  color: var(--texto-suave);
+}
+
+/* ---------- Formularios ---------- */
+
+.formulario {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+  max-width: 460px;
+}
+
+/* Formularios anchos: 3 columnas en pantalla grande, 2 en tablet y 1 en celular */
+.formulario--ancho {
+  grid-template-columns: 1fr 1fr 1fr;
+  align-items: end;
+  max-width: none;
+}
+
+.formulario--filtro {
+  margin-bottom: 16px;
+}
+
+.campo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-weight: bold;
+}
+
+.campo__ayuda {
+  font-weight: normal;
+  font-size: 0.85rem;
+  color: var(--texto-suave);
+}
+
+input,
+select {
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 10px;
+  font: inherit;
+  font-weight: normal;
+  color: var(--texto);
+  background: var(--blanco);
+  border: 1px solid var(--borde-campo);
+  border-radius: 4px;
+}
+
+input:disabled,
+select:disabled {
+  background: #ecebe5;
+  color: #55554f;
+  cursor: not-allowed;
+}
+
+/* ---------- Botones ---------- */
+
+.boton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 8px 16px;
+  font: inherit;
+  font-weight: bold;
+  text-decoration: none;
+  color: var(--blanco);
+  background: var(--verde);
+  border: 1px solid var(--verde);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.boton:hover:not(:disabled) {
+  background: var(--verde-oscuro);
+}
+
+.boton--secundario {
+  color: var(--verde);
+  background: var(--blanco);
+}
+
+.boton--secundario:hover:not(:disabled) {
+  color: var(--blanco);
+}
+
+.boton--peligro {
+  color: var(--rojo);
+  background: var(--blanco);
+  border-color: var(--rojo);
+}
+
+.boton--peligro:hover:not(:disabled) {
+  color: var(--blanco);
+  background: var(--rojo);
+}
+
+.boton--pequeno {
+  min-height: 32px;
+  padding: 4px 10px;
+  font-size: 0.9rem;
+}
+
+.boton:disabled {
+  color: #6b6b64;
+  background: #e4e3dc;
+  border-color: #c4c3ba;
+  cursor: not-allowed;
+}
+
+.acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* ---------- Mensajes ---------- */
+
+.alerta {
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  border: 1px solid;
+  border-radius: 4px;
+}
+
+.alerta ul {
+  padding-left: 18px;
+}
+
+.alerta--error {
+  color: var(--rojo);
+  background: var(--rojo-claro);
+}
+
+.alerta--ok {
+  color: var(--verde);
+  background: var(--verde-claro);
+}
+
+.alerta--aviso {
+  color: var(--aviso);
+  background: var(--aviso-claro);
+}
+
+/* ---------- Tablas ---------- */
+
+.tabla-contenedor {
+  overflow-x: auto;
+  border: 1px solid var(--borde);
+}
+
+.tabla {
+  width: 100%;
+  min-width: 560px;
+  border-collapse: collapse;
+  background: var(--blanco);
+}
+
+.tabla th,
+.tabla td {
+  padding: 8px 12px;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--borde);
+}
+
+.tabla thead th {
+  color: var(--blanco);
+  background: var(--verde);
+  white-space: nowrap;
+}
+
+.tabla tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.tabla--vacia {
+  text-align: center !important;
+  color: var(--texto-suave);
+}
+
+/* ---------- Estados de reserva ---------- */
+
+.etiqueta {
+  display: inline-block;
+  padding: 2px 8px;
+  font-size: 0.85rem;
+  font-weight: bold;
+  border: 1px solid;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.etiqueta--PENDIENTE {
+  color: var(--aviso);
+  background: var(--aviso-claro);
+}
+
+.etiqueta--CONFIRMADA {
+  color: var(--verde);
+  background: var(--verde-claro);
+}
+
+.etiqueta--CANCELADA {
+  color: #4a4a4a;
+  background: #ecebe5;
+}
+
+/* ---------- Calculadora ---------- */
+
+.precio-grande {
+  font-size: 2rem;
+  font-weight: bold;
+  color: var(--verde);
+}
+
+.dato__valor {
+  font-size: 2rem;
+  font-weight: bold;
+  color: var(--verde);
+}
+
+.desglose {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.desglose th,
+.desglose td {
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--borde);
+}
+
+.desglose td:last-child,
+.desglose th:last-child {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.desglose tfoot td {
+  font-weight: bold;
+  font-size: 1.1rem;
+  border-bottom: none;
+}
+
+.reglas {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  list-style: none;
+}
+
+.reglas__si {
+  color: var(--verde);
+  font-weight: bold;
+}
+
+/* ---------- Inicio de sesión ---------- */
+
+.login {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+}
+
+.login__tarjeta {
+  width: 100%;
+  max-width: 400px;
+  background: var(--blanco);
+  border: 1px solid var(--borde);
+  border-radius: 6px;
+  padding: 24px;
+}
+
+.login__logo {
+  display: block;
+  width: 140px;
+  height: auto;
+  margin: 0 auto 8px;
+}
+
+.login__tarjeta h1 {
+  text-align: center;
+  font-size: 1.4rem;
+}
+
+.login__tarjeta h2 {
+  text-align: center;
+  font-weight: normal;
+  color: var(--texto-suave);
+  margin-bottom: 16px;
+}
+
+.login__tarjeta .formulario {
+  max-width: none;
+}
+
+/* ---------- Ventana de confirmación ---------- */
+
+.confirmacion {
+  width: calc(100% - 32px);
+  max-width: 420px;
+  margin: auto;
+  padding: 20px;
+  color: var(--texto);
+  background: var(--blanco);
+  border: 1px solid var(--borde);
+  border-radius: 6px;
+}
+
+.confirmacion::backdrop {
+  background: rgb(0 0 0 / 50%);
+}
+
+.confirmacion p {
+  margin-bottom: 16px;
+}
+
+.confirmacion .acciones {
+  justify-content: flex-end;
+}
+
+/* ---------- Accesibilidad ---------- */
+
+/* Solo para lectores de pantalla */
+.solo-lectores {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* "Saltar al contenido": invisible hasta que recibe el foco con el teclado */
+.saltar {
+  position: absolute;
+  top: -100px;
+  left: 8px;
+  z-index: 100;
+  padding: 8px 14px;
+  font-weight: bold;
+  color: var(--blanco);
+  background: var(--verde);
+}
+
+.saltar:focus {
+  top: 8px;
+}
+
+/* ---------- Pantallas grandes ---------- */
+
+@media (min-width: 900px) {
+  .nav {
+    flex: 0 1 auto;
+    order: 0;
+  }
+}
+
+/* ---------- Tablet ---------- */
+
+@media (max-width: 900px) {
+  .formulario--ancho {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* ---------- Celular ---------- */
+
+@media (max-width: 600px) {
+  .formulario--ancho {
+    grid-template-columns: 1fr;
+  }
+
+  .resumen {
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .modulos {
+    grid-template-columns: 1fr;
+  }
+
+  .encabezado__usuario {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .tarjeta {
+    padding: 14px;
+  }
+}

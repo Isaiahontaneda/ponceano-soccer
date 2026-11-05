@@ -4,8 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { NOMBRE_ROL } from "@/lib/formato";
-import { llamarApi } from "./_comun/api";
+import { NOMBRE_ROL } from "@/frontend/utilidades/formato";
+import { llamarApi } from "@/frontend/utilidades/api";
 
 // Secciones del panel y qué roles las ven (null = todos los que tienen acceso).
 const ENLACES = [

@@ -1,8 +1,8 @@
 import "server-only";
-import { crearClienteAdmin } from "@/lib/supabase/admin";
-import { cargarTarifasConTipo } from "@/lib/modelo/tarifas";
-import { DIAS_HISTORIAL_CLIENTE } from "@/lib/configuracion";
-import { sumarDias } from "@/lib/fechas";
+import { crearClienteAdmin } from "@/backend/supabase/admin";
+import { cargarTarifasConTipo } from "@/backend/modelo/tarifas";
+import { DIAS_HISTORIAL_CLIENTE } from "@/backend/configuracion";
+import { sumarDias } from "@/backend/fechas";
 import { calcularPrecio } from "./calcularPrecio.js";
 
 // Cuenta las reservas CONFIRMADAS del cliente en los 30 días anteriores a la fecha:

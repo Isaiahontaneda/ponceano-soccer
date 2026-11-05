@@ -15,17 +15,21 @@ Next.js 16 (App Router, JavaScript), React 19, Supabase (PostgreSQL + Auth). Req
 
 | Capa | Dónde |
 | --- | --- |
-| Modelo | Supabase, accedido solo desde el servidor (`lib/supabase/`, `lib/modelo/`) |
-| Vista | `app/**/page.js` |
-| Controlador | `app/api/**/route.js` |
-| Core (cálculo de precio) | `lib/core/` |
-| Validaciones (funciones puras) | `lib/validaciones/` |
+| Modelo | Supabase, accedido solo desde el servidor (`backend/supabase/`, `backend/modelo/`) |
+| Vista | `frontend/paginas/` |
+| Controlador | `backend/controladores/` |
+| Core (cálculo de precio) | `backend/core/` |
+| Validaciones (funciones puras) | `backend/validaciones/` |
+
+El código está dividido en dos carpetas: `backend/` (lógica que corre solo en el servidor) y `frontend/` (pantallas,
+componentes y estilos). La carpeta `app/` es obligatoria en Next.js para definir las rutas: cada archivo de ahí tiene
+una sola línea que apunta a su controlador (`app/api/**/route.js`) o a su pantalla (`**/page.js`).
 
 ## El Core: cómo se calcula el precio
 
 El Core es el módulo que decide cuánto cuesta una reserva. No guarda ni lee nada por sí mismo: recibe los datos de la
 reserva (fecha, hora de inicio y cuántas reservas confirmadas tiene el cliente) y la lista de tarifas, y devuelve el
-precio con su desglose. Está en `lib/core/calcularPrecio.js`; `lib/core/servicioPrecio.js` lo conecta con la base de
+precio con su desglose. Está en `backend/core/calcularPrecio.js`; `backend/core/servicioPrecio.js` lo conecta con la base de
 datos en el servidor.
 
 ```
@@ -84,7 +88,7 @@ Feriado 2026-11-02 (+20 %); Cliente frecuente (−10 % desde 3 reservas).
 ## Horario de la cancha
 
 Bloques de 1 hora, con inicio de 08:00 a 23:00, en la zona horaria `America/Guayaquil`. Se pueden cambiar en
-`lib/configuracion.js`. No se puede reservar en fechas pasadas ni en bloques que ya empezaron, y un mismo horario no
+`backend/configuracion.js`. No se puede reservar en fechas pasadas ni en bloques que ya empezaron, y un mismo horario no
 admite dos reservas activas.
 
 ## Puesta en marcha
@@ -134,16 +138,9 @@ el rol a sí mismo, y no se puede eliminar ni degradar al último administrador.
 - Control de `Origin` en todas las escrituras (defensa contra CSRF).
 - La llave secreta solo existe en código de servidor; el navegador nunca habla directo con Supabase.
 
-## Pruebas
+## Revisión del código
 
 ```bash
-npm test         # pruebas unitarias: validaciones, estados de reserva y Core
 npm run lint
 npm run build
 ```
-
-## Despliegue en Vercel
-
-1. Importa el repositorio de GitHub en Vercel.
-2. Crea las 3 variables de entorno (la secreta sin marcar como pública).
-3. En Supabase, Authentication → URL Configuration: pon la URL de Vercel como Site URL.
