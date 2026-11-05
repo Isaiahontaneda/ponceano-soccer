@@ -1,47 +1,40 @@
 import { NextResponse } from "next/server";
 import { requerirAdmin } from "@/lib/auth";
 import { crearClienteAdmin } from "@/lib/supabase/admin";
+import { cargarTarifasConTipo } from "@/lib/modelo/tarifas";
 import { validarTarifa } from "@/lib/validaciones/tarifa";
+import { verificarOrigen } from "@/lib/seguridad";
+import { errorInterno, leerCuerpoJson, respuestaDenegada, solicitudInvalida } from "@/lib/http";
 
 // Lista de tarifas (solo administrador)
 export async function GET() {
   const permiso = await requerirAdmin();
-  if (permiso.error) {
-    return NextResponse.json({ error: permiso.error }, { status: permiso.estado });
+  if (permiso.error) return respuestaDenegada(permiso);
+
+  try {
+    const { tarifas } = await cargarTarifasConTipo(crearClienteAdmin());
+    // El alias interno "codigo" no se expone: el contrato público usa "tipoCodigo".
+    const lista = tarifas.map((t) => {
+      const copia = { ...t };
+      delete copia.codigo;
+      return copia;
+    });
+    return NextResponse.json({ tarifas: lista });
+  } catch (error) {
+    return errorInterno(error, "No se pudieron cargar las tarifas");
   }
-
-  const admin = crearClienteAdmin();
-  const { data: tipos } = await admin.from("tiposTarifa").select("id, codigo, nombre");
-  const { data: tarifas, error } = await admin.from("tarifas").select("*").order("id");
-
-  if (error || !tipos) {
-    console.error(error);
-    return NextResponse.json({ error: "No se pudieron cargar las tarifas" }, { status: 500 });
-  }
-
-  const lista = tarifas.map((t) => {
-    const tipo = tipos.find((x) => x.id === t.tipoId);
-    return { ...t, tipoCodigo: tipo?.codigo, tipoNombre: tipo?.nombre };
-  });
-  return NextResponse.json({ tarifas: lista });
 }
 
 // Crear tarifa (solo administrador)
 export async function POST(request) {
-  const permiso = await requerirAdmin();
-  if (permiso.error) {
-    return NextResponse.json({ error: permiso.error }, { status: permiso.estado });
-  }
+  const bloqueo = verificarOrigen(request);
+  if (bloqueo) return bloqueo;
 
-  let cuerpo;
-  try {
-    cuerpo = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Solicitud inválida" }, { status: 400 });
-  }
-  if (cuerpo === null || typeof cuerpo !== "object") {
-    return NextResponse.json({ error: "Solicitud inválida" }, { status: 400 });
-  }
+  const permiso = await requerirAdmin();
+  if (permiso.error) return respuestaDenegada(permiso);
+
+  const cuerpo = await leerCuerpoJson(request);
+  if (!cuerpo) return solicitudInvalida();
 
   const tipoId = Number(cuerpo.tipoId);
   if (!Number.isInteger(tipoId) || tipoId < 1) {
@@ -49,19 +42,19 @@ export async function POST(request) {
   }
 
   const admin = crearClienteAdmin();
-  const { data: tipos } = await admin.from("tiposTarifa").select("id, codigo");
-  const tipo = tipos?.find((t) => t.id === tipoId);
+  let tipos, tarifas;
+  try {
+    ({ tipos, tarifas } = await cargarTarifasConTipo(admin));
+  } catch (error) {
+    return errorInterno(error, "No se pudo guardar la tarifa");
+  }
+
+  const tipo = tipos.find((t) => t.id === tipoId);
   if (!tipo) {
     return NextResponse.json({ errores: ["El tipo de tarifa no existe."] }, { status: 422 });
   }
 
-  const { data: tarifas } = await admin.from("tarifas").select("*");
-  const existentes = (tarifas ?? []).map((t) => ({
-    ...t,
-    codigo: tipos.find((x) => x.id === t.tipoId)?.codigo,
-  }));
-
-  const { errores, datos } = validarTarifa(cuerpo, tipo.codigo, existentes);
+  const { errores, datos } = validarTarifa(cuerpo, tipo.codigo, tarifas);
   if (errores.length > 0) {
     return NextResponse.json({ errores }, { status: 422 });
   }
@@ -74,8 +67,11 @@ export async function POST(request) {
     .single();
 
   if (error) {
-    console.error(error);
-    return NextResponse.json({ error: "No se pudo guardar la tarifa" }, { status: 500 });
+    // 23505 = índice único (p. ej. "tarifas_una_sola_base") violado por una petición simultánea.
+    if (error.code === "23505") {
+      return NextResponse.json({ error: "Ya existe una tarifa base." }, { status: 409 });
+    }
+    return errorInterno(error, "No se pudo guardar la tarifa");
   }
   return NextResponse.json({ tarifa: creada }, { status: 201 });
 }

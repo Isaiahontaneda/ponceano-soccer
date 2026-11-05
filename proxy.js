@@ -28,13 +28,20 @@ export async function proxy(request) {
   // Esta llamada es la que renueva la sesión. No la quites.
   const { data } = await supabase.auth.getClaims();
 
-  // Comodidad: sin sesión, las páginas de /admin mandan al login.
-  // La protección real está en cada ruta de la API (requerirAdmin).
-  if (!data?.claims && request.nextUrl.pathname.startsWith("/admin")) {
+  const ruta = request.nextUrl.pathname;
+  const hayYSesion = Boolean(data?.claims);
+
+  // Comodidad: sin sesión, las páginas de /admin mandan al login, y "/" manda
+  // al panel (con sesión) o al login (sin sesión).
+  // La protección real está en cada ruta de la API (requerirRol / requerirAdmin).
+  if ((!hayYSesion && ruta.startsWith("/admin")) || ruta === "/") {
     const destino = request.nextUrl.clone();
-    destino.pathname = "/login";
+    destino.pathname = hayYSesion ? "/admin" : "/login";
     destino.search = "";
-    return NextResponse.redirect(destino);
+    const redireccion = NextResponse.redirect(destino);
+    // Conserva las cookies de sesión renovadas, si las hubo.
+    respuesta.cookies.getAll().forEach((c) => redireccion.cookies.set(c));
+    return redireccion;
   }
 
   return respuesta;

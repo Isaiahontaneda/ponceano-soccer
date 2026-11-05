@@ -1,34 +1,30 @@
 import { NextResponse } from "next/server";
 import { requerirAdmin } from "@/lib/auth";
 import { crearClienteAdmin } from "@/lib/supabase/admin";
-import { validarTarifa } from "@/lib/validaciones/tarifa";
-
-function leerId(texto) {
-  const id = Number(texto);
-  return Number.isInteger(id) && id > 0 ? id : null;
-}
+import { cargarTarifasConTipo } from "@/lib/modelo/tarifas";
+import { motivoNoEliminable, validarTarifa } from "@/lib/validaciones/tarifa";
+import { verificarOrigen } from "@/lib/seguridad";
+import {
+  errorInterno,
+  leerCuerpoJson,
+  leerIdNumerico,
+  respuestaDenegada,
+  solicitudInvalida,
+} from "@/lib/http";
 
 // Editar tarifa (solo administrador)
 export async function PUT(request, { params }) {
+  const bloqueo = verificarOrigen(request);
+  if (bloqueo) return bloqueo;
+
   const permiso = await requerirAdmin();
-  if (permiso.error) {
-    return NextResponse.json({ error: permiso.error }, { status: permiso.estado });
-  }
+  if (permiso.error) return respuestaDenegada(permiso);
 
-  const id = leerId((await params).id);
-  if (!id) {
-    return NextResponse.json({ error: "Id inválido" }, { status: 400 });
-  }
+  const id = leerIdNumerico((await params).id);
+  if (!id) return NextResponse.json({ error: "Id inválido" }, { status: 400 });
 
-  let cuerpo;
-  try {
-    cuerpo = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Solicitud inválida" }, { status: 400 });
-  }
-  if (cuerpo === null || typeof cuerpo !== "object") {
-    return NextResponse.json({ error: "Solicitud inválida" }, { status: 400 });
-  }
+  const cuerpo = await leerCuerpoJson(request);
+  if (!cuerpo) return solicitudInvalida();
 
   const tipoId = Number(cuerpo.tipoId);
   if (!Number.isInteger(tipoId) || tipoId < 1) {
@@ -36,87 +32,69 @@ export async function PUT(request, { params }) {
   }
 
   const admin = crearClienteAdmin();
-
-  const { data: actual } = await admin
-    .from("tarifas")
-    .select("id")
-    .eq("id", id)
-    .maybeSingle();
-  if (!actual) {
-    return NextResponse.json({ error: "La tarifa no existe" }, { status: 404 });
+  let tarifas;
+  try {
+    ({ tarifas } = await cargarTarifasConTipo(admin));
+  } catch (error) {
+    return errorInterno(error, "No se pudo guardar la tarifa");
   }
 
-  const { data: tipos } = await admin.from("tiposTarifa").select("id, codigo");
-  const tipo = tipos?.find((t) => t.id === tipoId);
-  if (!tipo) {
-    return NextResponse.json({ errores: ["El tipo de tarifa no existe."] }, { status: 422 });
+  const actual = tarifas.find((t) => t.id === id);
+  if (!actual) return NextResponse.json({ error: "La tarifa no existe" }, { status: 404 });
+
+  // El tipo no se puede cambiar: evita dejar el sistema sin base o sin una comparación.
+  if (tipoId !== actual.tipoId) {
+    return NextResponse.json(
+      { errores: ["El tipo de una tarifa no se puede cambiar. Elimínala y crea una nueva."] },
+      { status: 422 }
+    );
   }
 
-  const { data: tarifas } = await admin.from("tarifas").select("*");
-  const existentes = (tarifas ?? []).map((t) => ({
-    ...t,
-    codigo: tipos.find((x) => x.id === t.tipoId)?.codigo,
-  }));
-
-  const { errores, datos } = validarTarifa(cuerpo, tipo.codigo, existentes, id);
+  const { errores, datos } = validarTarifa(cuerpo, actual.tipoCodigo, tarifas, id);
   if (errores.length > 0) {
     return NextResponse.json({ errores }, { status: 422 });
   }
 
+  // El tipo no se toca: solo se actualizan los campos aprobados por la validación.
   const { data: editada, error } = await admin
     .from("tarifas")
-    .update({ tipoId, ...datos, fechaActualizacion: new Date().toISOString() })
+    .update({ ...datos, fechaActualizacion: new Date().toISOString() })
     .eq("id", id)
     .select()
-    .single();
+    .maybeSingle();
 
-  if (error) {
-    console.error(error);
-    return NextResponse.json({ error: "No se pudo guardar la tarifa" }, { status: 500 });
-  }
+  if (error) return errorInterno(error, "No se pudo guardar la tarifa");
+  if (!editada) return NextResponse.json({ error: "La tarifa no existe" }, { status: 404 });
   return NextResponse.json({ tarifa: editada });
 }
 
 // Eliminar tarifa (solo administrador)
 export async function DELETE(request, { params }) {
-  const permiso = await requerirAdmin();
-  if (permiso.error) {
-    return NextResponse.json({ error: permiso.error }, { status: permiso.estado });
-  }
+  const bloqueo = verificarOrigen(request);
+  if (bloqueo) return bloqueo;
 
-  const id = leerId((await params).id);
-  if (!id) {
-    return NextResponse.json({ error: "Id inválido" }, { status: 400 });
-  }
+  const permiso = await requerirAdmin();
+  if (permiso.error) return respuestaDenegada(permiso);
+
+  const id = leerIdNumerico((await params).id);
+  if (!id) return NextResponse.json({ error: "Id inválido" }, { status: 400 });
 
   const admin = crearClienteAdmin();
-
-  const { data: tarifa } = await admin
-    .from("tarifas")
-    .select("id, tipoId")
-    .eq("id", id)
-    .maybeSingle();
-  if (!tarifa) {
-    return NextResponse.json({ error: "La tarifa no existe" }, { status: 404 });
+  let tarifas;
+  try {
+    ({ tarifas } = await cargarTarifasConTipo(admin));
+  } catch (error) {
+    return errorInterno(error, "No se pudo eliminar la tarifa");
   }
 
-  // Sin tarifa base el Core no puede calcular precios: se protege.
-  const { data: tipo } = await admin
-    .from("tiposTarifa")
-    .select("codigo")
-    .eq("id", tarifa.tipoId)
-    .single();
-  if (tipo?.codigo === "BASE") {
-    return NextResponse.json(
-      { error: "No puedes eliminar la tarifa base. Edita su valor en su lugar." },
-      { status: 409 }
-    );
-  }
+  const tarifa = tarifas.find((t) => t.id === id);
+  if (!tarifa) return NextResponse.json({ error: "La tarifa no existe" }, { status: 404 });
+
+  // Protege la tarifa base y la última regla de cada grupo del Core (GRUPOS_CORE).
+  const motivo = motivoNoEliminable(tarifa, tarifas);
+  if (motivo) return NextResponse.json({ error: motivo }, { status: 409 });
 
   const { error } = await admin.from("tarifas").delete().eq("id", id);
-  if (error) {
-    console.error(error);
-    return NextResponse.json({ error: "No se pudo eliminar la tarifa" }, { status: 500 });
-  }
+  if (error) return errorInterno(error, "No se pudo eliminar la tarifa");
   return NextResponse.json({ ok: true });
 }

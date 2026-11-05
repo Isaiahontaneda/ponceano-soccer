@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-
-const DIAS = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+import { DIAS, dolares, hora, porcentaje } from "@/lib/formato";
+import { llamarApi, mensajesDeError } from "../_comun/api";
+import Alertas from "../_comun/Alertas";
+import IndicadorCore from "../_comun/IndicadorCore";
 
 const FORMULARIO_VACIO = {
   tipoId: "",
@@ -16,12 +18,10 @@ const FORMULARIO_VACIO = {
   minReservas: "",
 };
 
-const hora = (texto) => (texto ? texto.slice(0, 5) : "");
-const porcentaje = (valor) => Number((Number(valor) * 100).toFixed(1));
-
+// Texto del valor según el tipo: base en dólares, el resto en porcentaje.
 function valorTexto(t) {
-  if (t.tipoCodigo === "BASE") return `$${Number(t.valor).toFixed(2)}`;
-  if (t.tipoCodigo === "CLIENTE_FRECUENTE") return `-${porcentaje(t.valor)} %`;
+  if (t.tipoCodigo === "BASE") return dolares(t.valor);
+  if (t.tipoCodigo === "CLIENTE_FRECUENTE") return `−${porcentaje(t.valor)} %`;
   return `+${porcentaje(t.valor)} %`;
 }
 
@@ -42,6 +42,25 @@ function detalleTexto(t) {
   }
 }
 
+// Cómo influye cada regla en el precio final (fórmula del Core).
+function efectoTexto(t, base) {
+  switch (t.tipoCodigo) {
+    case "BASE":
+      return `Precio base: ${dolares(t.valor)} por hora`;
+    case "FRANJA_HORARIA":
+      return base
+        ? `${dolares(Number(base.valor) * (1 + Number(t.valor)))} por hora (base + ${porcentaje(t.valor)} %)`
+        : "—";
+    case "DIA_SEMANA":
+    case "FECHA_ESPECIAL":
+      return "Se suma al recargo de la franja";
+    case "CLIENTE_FRECUENTE":
+      return "Se resta al final, sobre el subtotal";
+    default:
+      return "—";
+  }
+}
+
 export default function PaginaTarifas() {
   const router = useRouter();
   const [tarifas, setTarifas] = useState([]);
@@ -55,15 +74,15 @@ export default function PaginaTarifas() {
 
   const cargar = useCallback(async () => {
     const [resTarifas, resTipos] = await Promise.all([
-      fetch("/api/tarifas"),
-      fetch("/api/tipos-tarifa"),
+      llamarApi("/api/tarifas"),
+      llamarApi("/api/tipos-tarifa"),
     ]);
 
-    if (resTarifas.status === 401 || resTipos.status === 401) {
+    if (resTarifas.estado === 401 || resTipos.estado === 401) {
       router.push("/login");
       return;
     }
-    if (resTarifas.status === 403 || resTipos.status === 403) {
+    if (resTarifas.estado === 403 || resTipos.estado === 403) {
       setErrores(["No tienes permiso para administrar tarifas."]);
       setCargando(false);
       return;
@@ -74,14 +93,12 @@ export default function PaginaTarifas() {
       return;
     }
 
-    const datosTarifas = await resTarifas.json();
-    const datosTipos = await resTipos.json();
-    setTarifas(datosTarifas.tarifas);
-    setTipos(datosTipos.tipos);
+    setTarifas(resTarifas.datos.tarifas);
+    setTipos(resTipos.datos.tipos);
     setCargando(false);
   }, [router]);
 
-    useEffect(() => {
+  useEffect(() => {
     // Carga inicial de datos desde la API al abrir la página: uso legítimo de un efecto.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     cargar();
@@ -89,6 +106,9 @@ export default function PaginaTarifas() {
 
   const tipoElegido = tipos.find((t) => String(t.id) === String(formulario.tipoId))?.codigo;
   const base = tarifas.find((t) => t.tipoCodigo === "BASE");
+
+  // Si ya existe la tarifa base, no se ofrece crear otra (al editar se muestran todos).
+  const tiposOfrecidos = editandoId || !base ? tipos : tipos.filter((t) => t.codigo !== "BASE");
 
   function cambiar(campo, valor) {
     setFormulario((anterior) => ({ ...anterior, [campo]: valor }));
@@ -107,7 +127,8 @@ export default function PaginaTarifas() {
     setFormulario({
       tipoId: String(t.tipoId),
       nombre: t.nombre,
-      valor: String(t.valor),
+      // La base se edita en dólares; recargos y descuentos, en porcentaje.
+      valor: t.tipoCodigo === "BASE" ? String(t.valor) : String(porcentaje(t.valor)),
       horaInicio: hora(t.horaInicio),
       horaFin: hora(t.horaFin),
       diaSemana: t.diaSemana === null ? "" : String(t.diaSemana),
@@ -117,34 +138,24 @@ export default function PaginaTarifas() {
     window.scrollTo(0, 0);
   }
 
-  // NUEVO: cerrar sesión
-  async function cerrarSesion() {
-    await fetch("/api/auth/logout", { method: "POST" });
-    router.push("/login");
-    router.refresh();
-  }
-
   async function enviar(evento) {
     evento.preventDefault();
     setErrores([]);
     setMensaje("");
     setGuardando(true);
 
-    const url = editandoId ? `/api/tarifas/${editandoId}` : "/api/tarifas";
-    const respuesta = await fetch(url, {
-      method: editandoId ? "PUT" : "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(formulario),
-    });
-    const datos = await respuesta.json().catch(() => ({}));
+    const resultado = await llamarApi(
+      editandoId ? `/api/tarifas/${editandoId}` : "/api/tarifas",
+      { metodo: editandoId ? "PUT" : "POST", cuerpo: formulario }
+    );
     setGuardando(false);
 
-    if (respuesta.status === 401) {
+    if (resultado.estado === 401) {
       router.push("/login");
       return;
     }
-    if (!respuesta.ok) {
-      setErrores(datos.errores ?? [datos.error ?? "Ocurrió un error inesperado."]);
+    if (!resultado.ok) {
+      setErrores(mensajesDeError(resultado.datos));
       return;
     }
 
@@ -159,219 +170,237 @@ export default function PaginaTarifas() {
     setErrores([]);
     setMensaje("");
 
-    const respuesta = await fetch(`/api/tarifas/${t.id}`, { method: "DELETE" });
-    const datos = await respuesta.json().catch(() => ({}));
+    const resultado = await llamarApi(`/api/tarifas/${t.id}`, { metodo: "DELETE" });
 
-    if (respuesta.status === 401) {
+    if (resultado.estado === 401) {
       router.push("/login");
       return;
     }
-    if (!respuesta.ok) {
-      setErrores([datos.error ?? "No se pudo eliminar la tarifa."]);
+    if (!resultado.ok) {
+      setErrores(mensajesDeError(resultado.datos, "No se pudo eliminar la tarifa."));
       return;
     }
     setMensaje("Tarifa eliminada.");
     await cargar();
   }
 
-  const celda = { border: "1px solid #ccc", padding: "6px 10px", textAlign: "left" };
-  const campo = { display: "block", width: "100%", marginBottom: 12 };
-
   if (cargando) {
-    return <main style={{ padding: 24 }}>Cargando...</main>;
+    return <p className="cargando">Cargando…</p>;
   }
 
+  const etiquetaValor =
+    tipoElegido === "BASE"
+      ? "Valor (precio por hora en dólares)"
+      : tipoElegido === "CLIENTE_FRECUENTE"
+      ? "Descuento (porcentaje)"
+      : "Recargo (porcentaje)";
+  const ayudaValor =
+    tipoElegido === "BASE"
+      ? "Ejemplo: 40 o 40.50 (máximo 2 decimales)."
+      : "Ejemplo: 12.5 equivale a 12.5 % (de 0 a 100, máximo 1 decimal).";
+
   return (
-    <main style={{ maxWidth: 900, margin: "0 auto", padding: 24 }}>
-      {/* NUEVO: encabezado con botón de cerrar sesión */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h1>Administración de tarifas</h1>
-        <button type="button" onClick={cerrarSesion}>
-          Cerrar sesión
-        </button>
+    <div className="pagina">
+      <div className="pagina__cabecera">
+        <div>
+          <h1>Administración de tarifas</h1>
+          <p className="pagina__intro">
+            Estas reglas alimentan el Core que calcula el precio de cada reserva.
+          </p>
+        </div>
       </div>
 
-      {errores.length > 0 && (
-        <ul role="alert" style={{ color: "crimson" }}>
-          {errores.map((e, i) => (
-            <li key={i}>{e}</li>
-          ))}
-        </ul>
-      )}
-      {mensaje && <p style={{ color: "green" }}>{mensaje}</p>}
+      <section className="tarjeta" aria-label="Estado del Core">
+        <IndicadorCore tarifas={tarifas} />
+      </section>
 
-      <h2>{editandoId ? "Editar tarifa" : "Nueva tarifa"}</h2>
-      <form onSubmit={enviar} style={{ maxWidth: 420, marginBottom: 32 }}>
-        <label>
-          Tipo de tarifa
-          <select
-            value={formulario.tipoId}
-            onChange={(e) => cambiar("tipoId", e.target.value)}
-            required
-            style={campo}
-          >
-            <option value="">Selecciona un tipo...</option>
-            {tipos.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.nombre}
-              </option>
-            ))}
-          </select>
-        </label>
+      <Alertas errores={errores} mensaje={mensaje} />
 
-        <label>
-          Nombre
-          <input
-            type="text"
-            value={formulario.nombre}
-            onChange={(e) => cambiar("nombre", e.target.value)}
-            maxLength={60}
-            required
-            style={campo}
-          />
-        </label>
-
-        <label>
-          {tipoElegido === "BASE"
-            ? "Valor (precio por hora en $)"
-            : "Valor (decimal: 0.25 equivale a 25 %)"}
-          <input
-            type="number"
-            step="0.001"
-            value={formulario.valor}
-            onChange={(e) => cambiar("valor", e.target.value)}
-            required
-            style={campo}
-          />
-        </label>
-
-        {tipoElegido === "FRANJA_HORARIA" && (
-          <>
-            <label>
-              Hora de inicio
-              <input
-                type="time"
-                value={formulario.horaInicio}
-                onChange={(e) => cambiar("horaInicio", e.target.value)}
-                required
-                style={campo}
-              />
-            </label>
-            <label>
-              Hora de fin
-              <input
-                type="time"
-                value={formulario.horaFin}
-                onChange={(e) => cambiar("horaFin", e.target.value)}
-                required
-                style={campo}
-              />
-            </label>
-          </>
-        )}
-
-        {tipoElegido === "DIA_SEMANA" && (
-          <label>
-            Día de la semana
+      <section className="tarjeta">
+        <h2>{editandoId ? "Editar tarifa" : "Nueva tarifa"}</h2>
+        <form onSubmit={enviar} className="formulario">
+          <label className="campo">
+            Tipo de tarifa
             <select
-              value={formulario.diaSemana}
-              onChange={(e) => cambiar("diaSemana", e.target.value)}
+              value={formulario.tipoId}
+              onChange={(e) => cambiar("tipoId", e.target.value)}
+              disabled={Boolean(editandoId)}
               required
-              style={campo}
             >
-              <option value="">Selecciona un día...</option>
-              {DIAS.map((dia, indice) => (
-                <option key={indice} value={indice}>
-                  {dia}
+              <option value="">Selecciona un tipo…</option>
+              {tiposOfrecidos.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.nombre}
                 </option>
               ))}
             </select>
+            {editandoId && (
+              <span className="campo__ayuda">El tipo no se puede cambiar al editar.</span>
+            )}
           </label>
-        )}
 
-        {tipoElegido === "FECHA_ESPECIAL" && (
-          <label>
-            Fecha
+          <label className="campo">
+            Nombre
             <input
-              type="date"
-              value={formulario.fecha}
-              onChange={(e) => cambiar("fecha", e.target.value)}
+              type="text"
+              value={formulario.nombre}
+              onChange={(e) => cambiar("nombre", e.target.value)}
+              maxLength={60}
               required
-              style={campo}
             />
           </label>
-        )}
 
-        {tipoElegido === "CLIENTE_FRECUENTE" && (
-          <label>
-            Mínimo de reservas confirmadas
+          <label className="campo">
+            {etiquetaValor}
             <input
               type="number"
-              min="1"
-              step="1"
-              value={formulario.minReservas}
-              onChange={(e) => cambiar("minReservas", e.target.value)}
+              inputMode="decimal"
+              step={tipoElegido === "BASE" ? "0.01" : "0.1"}
+              min="0"
+              value={formulario.valor}
+              onChange={(e) => cambiar("valor", e.target.value)}
               required
-              style={campo}
             />
+            {tipoElegido && <span className="campo__ayuda">{ayudaValor}</span>}
           </label>
-        )}
 
-        <button type="submit" disabled={guardando}>
-          {guardando ? "Guardando..." : editandoId ? "Guardar cambios" : "Crear tarifa"}
-        </button>
-        {editandoId && (
-          <button type="button" onClick={cancelarEdicion} style={{ marginLeft: 8 }}>
-            Cancelar
-          </button>
-        )}
-      </form>
-
-      <h2>Tarifas actuales</h2>
-      <table style={{ borderCollapse: "collapse", width: "100%" }}>
-        <thead>
-          <tr>
-            <th style={celda}>Tipo</th>
-            <th style={celda}>Nombre</th>
-            <th style={celda}>Valor</th>
-            <th style={celda}>Detalle</th>
-            <th style={celda}>Precio por hora</th>
-            <th style={celda}>Acciones</th>
-          </tr>
-        </thead>
-        <tbody>
-          {tarifas.map((t) => (
-            <tr key={t.id}>
-              <td style={celda}>{t.tipoNombre}</td>
-              <td style={celda}>{t.nombre}</td>
-              <td style={celda}>{valorTexto(t)}</td>
-              <td style={celda}>{detalleTexto(t)}</td>
-              <td style={celda}>
-                {t.tipoCodigo === "FRANJA_HORARIA" && base
-                  ? `$${(Number(base.valor) * (1 + Number(t.valor))).toFixed(2)}`
-                  : t.tipoCodigo === "BASE"
-                  ? `$${Number(t.valor).toFixed(2)}`
-                  : "—"}
-              </td>
-              <td style={celda}>
-                <button type="button" onClick={() => editar(t)}>
-                  Editar
-                </button>{" "}
-                <button type="button" onClick={() => eliminar(t)}>
-                  Eliminar
-                </button>
-              </td>
-            </tr>
-          ))}
-          {tarifas.length === 0 && (
-            <tr>
-              <td style={celda} colSpan={6}>
-                No hay tarifas registradas.
-              </td>
-            </tr>
+          {tipoElegido === "FRANJA_HORARIA" && (
+            <>
+              <label className="campo">
+                Hora de inicio
+                <input
+                  type="time"
+                  value={formulario.horaInicio}
+                  onChange={(e) => cambiar("horaInicio", e.target.value)}
+                  required
+                />
+              </label>
+              <label className="campo">
+                Hora de fin
+                <input
+                  type="time"
+                  value={formulario.horaFin}
+                  onChange={(e) => cambiar("horaFin", e.target.value)}
+                  required
+                />
+                <span className="campo__ayuda">
+                  Incluida en la franja. Ejemplo: 18:00 a 21:59 cubre los bloques de 18:00, 19:00,
+                  20:00 y 21:00.
+                </span>
+              </label>
+            </>
           )}
-        </tbody>
-      </table>
-    </main>
+
+          {tipoElegido === "DIA_SEMANA" && (
+            <label className="campo">
+              Día de la semana
+              <select
+                value={formulario.diaSemana}
+                onChange={(e) => cambiar("diaSemana", e.target.value)}
+                required
+              >
+                <option value="">Selecciona un día…</option>
+                {DIAS.map((dia, indice) => (
+                  <option key={indice} value={indice}>
+                    {dia}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+
+          {tipoElegido === "FECHA_ESPECIAL" && (
+            <label className="campo">
+              Fecha
+              <input
+                type="date"
+                value={formulario.fecha}
+                onChange={(e) => cambiar("fecha", e.target.value)}
+                required
+              />
+            </label>
+          )}
+
+          {tipoElegido === "CLIENTE_FRECUENTE" && (
+            <label className="campo">
+              Mínimo de reservas confirmadas (últimos 30 días)
+              <input
+                type="number"
+                min="1"
+                step="1"
+                value={formulario.minReservas}
+                onChange={(e) => cambiar("minReservas", e.target.value)}
+                required
+              />
+            </label>
+          )}
+
+          <div className="acciones">
+            <button type="submit" className="boton" disabled={guardando}>
+              {guardando ? "Guardando…" : editandoId ? "Guardar cambios" : "Crear tarifa"}
+            </button>
+            {editandoId && (
+              <button type="button" className="boton boton--secundario" onClick={cancelarEdicion}>
+                Cancelar
+              </button>
+            )}
+          </div>
+        </form>
+      </section>
+
+      <section className="tarjeta">
+        <h2>Tarifas actuales</h2>
+        <div className="tabla-contenedor">
+          <table className="tabla">
+            <thead>
+              <tr>
+                <th scope="col">Tipo</th>
+                <th scope="col">Nombre</th>
+                <th scope="col">Valor</th>
+                <th scope="col">Detalle</th>
+                <th scope="col">Efecto en el precio</th>
+                <th scope="col">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {tarifas.map((t) => (
+                <tr key={t.id}>
+                  <td>{t.tipoNombre}</td>
+                  <td>{t.nombre}</td>
+                  <td>{valorTexto(t)}</td>
+                  <td>{detalleTexto(t)}</td>
+                  <td>{efectoTexto(t, base)}</td>
+                  <td>
+                    <div className="acciones">
+                      <button
+                        type="button"
+                        className="boton boton--secundario boton--pequeno"
+                        onClick={() => editar(t)}
+                      >
+                        Editar
+                      </button>
+                      <button
+                        type="button"
+                        className="boton boton--peligro boton--pequeno"
+                        onClick={() => eliminar(t)}
+                      >
+                        Eliminar
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {tarifas.length === 0 && (
+                <tr>
+                  <td className="tabla--vacia" colSpan={6}>
+                    No hay tarifas registradas.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
   );
 }
