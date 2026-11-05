@@ -79,7 +79,7 @@ export default function PaginaCalculadora() {
         <div>
           <h1>Calculadora de precio</h1>
           <p className="pagina__intro">
-            Simula una reserva y mira cómo el Core llega al precio, paso a paso.
+            Simula una reserva y mira cómo se llega al precio, paso a paso.
           </p>
         </div>
       </div>
@@ -170,23 +170,23 @@ export default function PaginaCalculadora() {
           </section>
 
           <section className="tarjeta">
-            <h2>Comparaciones del Core</h2>
-            <ul className="core core--columna">
-              <li className={comparaciones.franja.aplicada ? "core__si" : ""}>
+            <h2>Reglas aplicadas</h2>
+            <ul className="reglas">
+              <li className={comparaciones.franja.aplicada ? "reglas__si" : ""}>
                 <span aria-hidden="true">{comparaciones.franja.aplicada ? "✔" : "—"}</span>{" "}
                 <strong>1. Franja horaria:</strong>{" "}
                 {comparaciones.franja.aplicada
                   ? `la hora cae en «${comparaciones.franja.regla.nombre}»`
                   : "ninguna franja cubre esa hora (sin recargo de franja)"}
               </li>
-              <li className={comparaciones.calendario.aplicada ? "core__si" : ""}>
+              <li className={comparaciones.calendario.aplicada ? "reglas__si" : ""}>
                 <span aria-hidden="true">{comparaciones.calendario.aplicada ? "✔" : "—"}</span>{" "}
                 <strong>2. Calendario:</strong>{" "}
                 {comparaciones.calendario.aplicada
                   ? comparaciones.calendario.reglas.map((r) => `«${r.nombre}»`).join(" + ")
                   : "ese día no tiene recargo de día de la semana ni fecha especial"}
               </li>
-              <li className={comparaciones.clienteFrecuente.aplicada ? "core__si" : ""}>
+              <li className={comparaciones.clienteFrecuente.aplicada ? "reglas__si" : ""}>
                 <span aria-hidden="true">{comparaciones.clienteFrecuente.aplicada ? "✔" : "—"}</span>{" "}
                 <strong>3. Cliente frecuente:</strong>{" "}
                 {comparaciones.clienteFrecuente.aplicada

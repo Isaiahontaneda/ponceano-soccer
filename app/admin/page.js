@@ -17,7 +17,7 @@ const MODULOS = [
   {
     href: "/admin/calculadora",
     titulo: "Calculadora",
-    texto: "Simula un precio y revisa el desglose del Core.",
+    texto: "Simula un precio y revisa su desglose.",
     roles: ["ADMINISTRADOR", "RECEPCIONISTA"],
   },
   {
@@ -82,10 +82,6 @@ export default function PortadaAdmin() {
               <div className="tarjeta dato">
                 <span className="dato__valor">{resumen.totalTarifas}</span>
                 <span className="dato__texto">tarifas registradas</span>
-              </div>
-              <div className="tarjeta dato">
-                <span className="dato__valor">{resumen.comparacionesActivas} de 3</span>
-                <span className="dato__texto">comparaciones activas del Core</span>
               </div>
             </>
           )}

@@ -36,7 +36,7 @@ Marca cada fila cuando el resultado coincida con lo esperado.
 
 | # | Prueba | Resultado esperado |
 | --- | --- | --- |
-| 3.1 | Abrir **Tarifas** | Se ve «Comparaciones activas del Core: 3 de 3» con ✔ en las tres. |
+| 3.1 | Abrir **Tarifas** | Se ve la tabla de tarifas con su «Efecto en el precio»; no aparece ningún aviso de tarifa base faltante. |
 | 3.2 | Abrir el desplegable «Tipo de tarifa» | **No** aparece «Tarifa base» (ya existe). |
 | 3.3 | Crear franja `Madrugada`, 00:00 a 07:59, `5` (%) | Se crea; en la tabla aparece «+5 %» y el efecto «$42.00 por hora (base + 5 %)». |
 | 3.4 | Crear otra franja 17:00 a 19:00 | Rechazada: «La franja se cruza con…». |
@@ -106,7 +106,7 @@ Comprobaciones adicionales:
 | 6.4 | Volver a elegir la misma fecha | La hora recién reservada ya no aparece; se muestra en «Ocupados». |
 | 6.5 | Elegir la fecha de **hoy** | No aparecen las horas que ya empezaron. |
 | 6.6 | (Avanzada) Enviar por la consola un `POST /api/reservas` con fecha pasada | `422`: «No se puede reservar en una fecha pasada.» |
-| 6.7 | (Avanzada) Enviar un `POST` con `"precio": 0.01` | Se ignora: el precio guardado es el calculado por el Core. |
+| 6.7 | (Avanzada) Enviar un `POST` con `"precio": 0.01` | Se ignora: el precio guardado es el calculado por el servidor. |
 | 6.8 | (Avanzada) Reservar dos veces el mismo horario | `409`: «Ese horario ya está reservado». |
 | 6.9 | **Confirmar** una reserva pendiente | Estado **Confirmada**; quedan solo el botón Cancelar. |
 | 6.10 | **Cancelar** una reserva confirmada o pendiente | Estado **Cancelada**; sin botones; el horario vuelve a quedar libre. |

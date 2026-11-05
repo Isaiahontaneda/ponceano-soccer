@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { DIAS, dolares, hora, porcentaje } from "@/lib/formato";
 import { llamarApi, mensajesDeError } from "../_comun/api";
 import Alertas from "../_comun/Alertas";
-import IndicadorCore from "../_comun/IndicadorCore";
+import AvisoBase from "../_comun/AvisoBase";
 
 const FORMULARIO_VACIO = {
   tipoId: "",
@@ -42,7 +42,7 @@ function detalleTexto(t) {
   }
 }
 
-// Cómo influye cada regla en el precio final (fórmula del Core).
+// Cómo influye cada regla en el precio final (fórmula del precio).
 function efectoTexto(t, base) {
   switch (t.tipoCodigo) {
     case "BASE":
@@ -205,14 +205,12 @@ export default function PaginaTarifas() {
         <div>
           <h1>Administración de tarifas</h1>
           <p className="pagina__intro">
-            Estas reglas alimentan el Core que calcula el precio de cada reserva.
+            Estas reglas determinan el precio de cada reserva.
           </p>
         </div>
       </div>
 
-      <section className="tarjeta" aria-label="Estado del Core">
-        <IndicadorCore tarifas={tarifas} />
-      </section>
+      <AvisoBase tarifas={tarifas} />
 
       <Alertas errores={errores} mensaje={mensaje} />
 

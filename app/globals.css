@@ -341,33 +341,17 @@ select:disabled {
   border-color: #6f6f68;
 }
 
-/* ---------- Indicador de comparaciones del Core ---------- */
+/* ---------- Reglas aplicadas en la calculadora ---------- */
 
-.core {
+.reglas {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 20px;
+  flex-direction: column;
+  gap: 8px;
   list-style: none;
 }
 
-.core--columna {
-  flex-direction: column;
-  align-items: flex-start;
-}
-
-.core__titulo {
-  font-weight: 700;
-  margin-right: 4px;
-}
-
-.core__si {
+.reglas__si {
   color: var(--color-ok);
-  font-weight: 600;
-}
-
-.core__no {
-  color: var(--color-error);
   font-weight: 600;
 }
 

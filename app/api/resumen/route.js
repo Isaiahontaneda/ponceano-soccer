@@ -30,7 +30,6 @@ export async function GET() {
       const { tarifas } = await cargarTarifasConTipo(admin);
       const estado = comparacionesActivas(tarifas);
       resumen.totalTarifas = tarifas.length;
-      resumen.comparacionesActivas = estado.total;
       resumen.hayBase = estado.hayBase;
     }
 

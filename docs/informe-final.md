@@ -131,3 +131,8 @@ Hazlas con [`pruebas-manuales.md`](pruebas-manuales.md).
 - **CSP:** presente pero con `'unsafe-inline'`; no es una CSP «estricta».
 - **Prueba de rutas con base de datos:** no se ejecutó ninguna (ver sección 6).
 - La Fase 8 pide listar los ajustes de Supabase y Vercel: están en la sección 2.
+
+## 8. Ajuste posterior
+
+- Se quitaron de la interfaz y de los mensajes al usuario todas las menciones al «Core» y el indicador «Comparaciones activas del Core» (queda solo un aviso si falta la tarifa base). El nombre sigue en comentarios y carpetas del código.
+- El README se redujo a lo esencial.
