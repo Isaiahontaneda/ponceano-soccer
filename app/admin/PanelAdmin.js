@@ -57,7 +57,7 @@ export default function PanelAdmin({ children }) {
 
   return (
     <>
-      <a href="#contenido" className="solo-lectores">
+      <a href="#contenido" className="saltar">
         Saltar al contenido
       </a>
       <header className="encabezado">

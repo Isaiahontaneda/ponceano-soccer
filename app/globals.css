@@ -602,3 +602,20 @@ select:disabled {
 .formulario--filtro {
   margin-bottom: 16px;
 }
+
+/* Enlace "Saltar al contenido": invisible hasta que recibe el foco con el teclado */
+.saltar {
+  position: absolute;
+  top: -100px;
+  left: 8px;
+  z-index: 100;
+  padding: 8px 14px;
+  font-weight: 600;
+  color: #ffffff;
+  background: var(--color-primario);
+  border-radius: 8px;
+}
+
+.saltar:focus {
+  top: 8px;
+}
