@@ -8,7 +8,7 @@ Rama: `admin-completo` (solo commits locales; no se hizo `git push` ni despliegu
 - Validación en `lib/validaciones/tarifa.js`: nombre 1–60; base en dólares (0 < v ≤ 1000, 2 decimales); recargos/descuentos en **porcentaje** (0–100, 1 decimal) convertidos a decimal; campos según el tipo (el resto en `null`); franjas sin cruces; una sola base; sin repetir día ni fecha; `minReservas` entero ≥ 1; tipo desconocido → error.
 - `PUT /api/tarifas/[id]` rechaza (422) cambiar el tipo. `DELETE` da 409 para la base y para la última regla de cada grupo (`motivoNoEliminable`, `GRUPOS_CORE`).
 - Interfaz: la base no se ofrece si ya existe; tipo bloqueado al editar; etiqueta y ayuda del valor según el tipo; indicador «Comparaciones activas del Core: n de 3» con ✔/✖ y aviso si falta la base; columna «Efecto en el precio»; al editar se carga el porcentaje.
-- Migración `supabase/migraciones/001_indice_base_unica.sql`.
+- Índice único de la tarifa base en la base de datos (ya ejecutado en Supabase).
 
 ### Fase 2 — Core
 - `lib/core/calcularPrecio.js`: función pura, con `for` sobre las tarifas y comentarios `COMPARACIÓN 1/2/3`. Aritmética entera (centavos y milésimas): redondeo exacto, mitad hacia arriba, una sola vez.
@@ -44,7 +44,7 @@ Rama: `admin-completo` (solo commits locales; no se hizo `git push` ni despliegu
 - `.env.example` con los 3 nombres; `.gitignore` ignora `.env*` salvo la plantilla.
 
 ### Fase 7 — Documentación
-- `README.md`, `docs/pruebas-manuales.md`, `docs/guion-video.md`, `supabase/esquema.sql`, `supabase/datos-iniciales.sql` y este informe.
+- `README.md`, `docs/pruebas-manuales.md`, `docs/guion-video.md` y este informe.
 
 ### Fase 8 — Preparación del despliegue
 - `npm run build` pasa sin errores ni advertencias. Las variables y los ajustes de Supabase están en la sección 2.
@@ -62,9 +62,7 @@ Nota: los cambios de identidad visual, portada y seguridad se repartieron en los
 
 ## 2. Qué debes hacer tú a mano
 
-1. **Migraciones SQL en Supabase** (SQL Editor, en este orden):
-   1. `supabase/migraciones/001_indice_base_unica.sql` (índice único de la tarifa base). Antes comprueba que solo haya **una** fila con `tipoId = 1`; si hubiera dos, el índice fallará. Hasta que lo ejecutes, el código igualmente impide una segunda base (validación), y si el índice existe, la carrera se detecta con el error 23505 → 409.
-   - `esquema.sql` y `datos-iniciales.sql` son documentación: **no** hace falta ejecutarlos en tu proyecto actual.
+1. **Migración SQL en Supabase:** el índice único de la tarifa base ya fue ejecutado.
 2. **Ajustes en Supabase:** desactivar el registro público (*Authentication → Sign In / Providers → Allow new users to sign up*), y tras desplegar poner la URL de Vercel en *Authentication → URL Configuration* (Site URL y Redirect URLs).
 3. **Logo:** no hizo falta copiarlo: `public/logo.png` existía (estaba sin versionar y quedó incluido en el primer commit).
 4. **Variables en Vercel** (Production, y Preview si la usarás): `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY` (esta última nunca pública).
@@ -109,7 +107,6 @@ También probé con `next start` y `curl`, **sin sesión**: `/` y `/admin*` redi
 - **El «mínimo de reservas» solo cuenta CONFIRMADAS de los 30 días previos**; no hay editor para la ventana de 30 días (constante en `lib/configuracion.js`).
 - **Un CLIENTE no tiene todavía pantallas propias:** el sistema es de administración; la calculadora para clientes existe solo en la API.
 - **Precio de reservas ya creadas:** no se recalcula si cambian las tarifas (queda guardado el precio del momento).
-- **`esquema.sql` es una reconstrucción** hecha a partir de la descripción del esquema, no un volcado de tu base; los textos de `tiposTarifa.nombre` de `datos-iniciales.sql` son los que usé yo.
 - **Horario en cambios de día:** «hoy» y la hora actual se calculan en `America/Guayaquil` en el servidor; la interfaz de reservas usa lo mismo en el navegador.
 
 ## 6. Pruebas manuales y lo que no pude comprobar
@@ -120,7 +117,7 @@ Hazlas con [`pruebas-manuales.md`](pruebas-manuales.md).
 - Ningún flujo **con sesión iniciada**: login real, CRUD de tarifas, usuarios y reservas contra tu Supabase, creación de cuentas en Auth, el rollback, y los permisos por rol con cuentas reales. La lógica está cubierta por pruebas unitarias de las funciones puras y revisada leyendo el código, pero **las rutas con base de datos no se ejecutaron**.
 - Que la **CSP no rompa nada en un navegador real** (solo verifiqué cabeceras y que el HTML referencia únicamente recursos propios). Si ves algo roto en producción, revisa la consola; la política se ajusta en `next.config.mjs` o se quita una línea.
 - La apariencia visual (colores, responsivo, foco) en pantalla: se diseñó con contrastes calculados, pero **no la vi renderizada**.
-- La migración 001 contra tu base y la existencia exacta del nombre del índice `reservas_horario_unico` en el mensaje del error `23505` (el código lo busca por ese nombre; si el mensaje no lo incluyera, el choque se trataría como colisión de código y acabaría en un error 500 genérico tras 5 intentos, en lugar del 409; el precomprobado del horario cubre el caso normal).
+- la existencia exacta del nombre del índice `reservas_horario_unico` en el mensaje del error `23505` (el código lo busca por ese nombre; si el mensaje no lo incluyera, el choque se trataría como colisión de código y acabaría en un error 500 genérico tras 5 intentos, en lugar del 409; el precomprobado del horario cubre el caso normal).
 - El comportamiento con Vercel (`Host` y `Origin` en producción deberían coincidir; si usas un dominio propio detrás de otro proxy y ves 403 en los envíos, habrá que revisarlo).
 
 ## 7. Puntos en que el código no cumple lo pedido o lo cumple distinto

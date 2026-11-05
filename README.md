@@ -37,8 +37,8 @@ Variables de `.env.local` (el archivo no se sube a Git):
 
 ## Base de datos
 
-En el SQL Editor de Supabase ejecuta, en orden: `supabase/esquema.sql`, `supabase/datos-iniciales.sql` y las
-migraciones de `supabase/migraciones/`. Las tablas tienen RLS activado sin políticas: solo el servidor accede.
+Las tablas (`tiposTarifa`, `usuarios`, `tarifas` y `reservas`) se crean en el SQL Editor de Supabase, con RLS
+activado y sin políticas: solo el servidor accede.
 
 **Primer administrador:** en Authentication → Users crea el usuario (con *Auto Confirm User*) y luego ejecuta:
 
@@ -73,12 +73,8 @@ npm run lint
 npm run build
 ```
 
-Pruebas manuales: [`docs/pruebas-manuales.md`](docs/pruebas-manuales.md).
-
 ## Despliegue en Vercel
 
 1. Importa el repositorio de GitHub en Vercel.
 2. Crea las 3 variables de entorno (la secreta sin marcar como pública).
 3. En Supabase, Authentication → URL Configuration: pon la URL de Vercel como Site URL.
-
-Más detalle en [`docs/informe-final.md`](docs/informe-final.md) y [`docs/guion-video.md`](docs/guion-video.md).
