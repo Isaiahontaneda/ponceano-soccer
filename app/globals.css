@@ -598,3 +598,7 @@ select:disabled {
     transition: none !important;
   }
 }
+
+.formulario--filtro {
+  margin-bottom: 16px;
+}
