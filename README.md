@@ -1,15 +1,119 @@
-# Ponceano Soccer
+<h1 align="center">Ponceano Soccer</h1>
 
-Sistema web para gestionar las reservas de una cancha sintética de fútbol. El precio de cada reserva se calcula
-automáticamente a partir de reglas de tarifas que el administrador mantiene en un panel.
-Proyecto UDLA, curso Ingeniería Web (Tarea 8, Administración MVC).
+<p align="center">
+  <img src="public/logo.png" alt="Logo de Ponceano Soccer: letras P y S naranja y verde junto a un balón, con el lema Vive, disfruta, juega" width="220">
+</p>
 
-- Sitio desplegado: **PENDIENTE**
-- Video explicativo: **PENDIENTE**
+<p align="center">
+  <img src="https://img.shields.io/badge/STATUS-EN%20DESARROLLO-green" alt="Estado del proyecto: en desarrollo">
+  <img src="https://img.shields.io/badge/Next.js-16-black?logo=nextdotjs" alt="Next.js 16">
+  <img src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black" alt="React 19">
+  <img src="https://img.shields.io/badge/Supabase-PostgreSQL%20%2B%20Auth-3ECF8E?logo=supabase&logoColor=white" alt="Supabase">
+  <img src="https://img.shields.io/badge/Node-%E2%89%A5%2020-339933?logo=nodedotjs&logoColor=white" alt="Node 20 o superior">
+</p>
 
-## Stack
+> Sistema web para gestionar las reservas de una cancha sintética de fútbol, con precios calculados automáticamente.
 
-Next.js 16 (App Router, JavaScript), React 19, Supabase (PostgreSQL + Auth). Requiere Node ≥ 20.
+## Índice
+
+- [Descripción del proyecto](#descripción-del-proyecto)
+- [Estado del proyecto](#estado-del-proyecto)
+- [Funcionalidades](#funcionalidades)
+- [Acceso al proyecto](#acceso-al-proyecto)
+- [Abre y ejecuta el proyecto](#abre-y-ejecuta-el-proyecto)
+- [Base de datos](#base-de-datos)
+- [Tecnologías utilizadas](#tecnologías-utilizadas)
+- [Arquitectura MVC](#arquitectura-mvc)
+- [El Core: cómo se calcula el precio](#el-core-cómo-se-calcula-el-precio)
+- [Horario de la cancha](#horario-de-la-cancha)
+- [Roles](#roles)
+- [Seguridad](#seguridad)
+- [Revisión del código](#revisión-del-código)
+- [Autor](#autor)
+
+## Descripción del proyecto
+
+Ponceano Soccer permite administrar las reservas de una cancha sintética de fútbol desde un panel web. El precio de
+cada reserva no se escribe a mano: se calcula automáticamente a partir de reglas de tarifas (franja horaria, día de la
+semana, feriados y descuento por cliente frecuente) que el administrador mantiene en el mismo panel.
+
+Proyecto de la UDLA, curso Ingeniería Web (Tarea 8, Administración MVC).
+
+## Estado del proyecto
+
+![Badge en desarrollo](https://img.shields.io/badge/STATUS-EN%20DESARROLLO-green)
+
+Proyecto académico en desarrollo. 
+
+- Sitio desplegado: <https://ponceano-soccer-ltmnjcv3z-ontanedaisaiah-3553s-projects.vercel.app/login>
+- Video explicativo: <https://youtu.be/jd6V3jbnMDs>
+
+## Funcionalidades
+
+- **Reservas:** agenda del día, creación de reservas y cambio de estado, sin permitir fechas pasadas ni dos reservas
+  activas en el mismo horario.
+- **Cálculo automático del precio** con desglose paso a paso (ver [El Core](#el-core-cómo-se-calcula-el-precio)).
+- **Calculadora:** simula el precio de una reserva y muestra qué reglas se aplicaron.
+- **Tarifas:** el administrador crea y edita las reglas de precio sin tocar el código.
+- **Usuarios y roles:** administrador, recepcionista y cliente, con permisos distintos.
+- **Panel de administración** con resumen de reservas del día y aviso si falta la tarifa base.
+
+
+
+## Acceso al proyecto
+
+- Sitio desplegado: <https://ponceano-soccer-ltmnjcv3z-ontanedaisaiah-3553s-projects.vercel.app/login>
+- Repositorio: <https://github.com/Isaiahontaneda/ponceano-soccer>
+
+Para descargarlo:
+
+```bash
+git clone https://github.com/Isaiahontaneda/ponceano-soccer.git
+cd ponceano-soccer
+```
+
+## Abre y ejecuta el proyecto
+
+Requisitos: **Node ≥ 20** y un proyecto de [Supabase](https://supabase.com/).
+
+```bash
+npm install
+cp .env.example .env.local   # completa los 3 valores (ver abajo)
+npm run dev                  # http://localhost:3000
+```
+
+Variables de `.env.local` (el archivo no se sube a Git):
+
+| Variable | Uso |
+| --- | --- |
+| `NEXT_PUBLIC_SUPABASE_URL` | URL del proyecto de Supabase |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Llave pública, sin permisos sobre las tablas |
+| `SUPABASE_SECRET_KEY` | Solo servidor, nunca con prefijo `NEXT_PUBLIC_` |
+
+### Base de datos
+
+Las tablas (`tiposTarifa`, `usuarios`, `tarifas` y `reservas`) se crean en el SQL Editor de Supabase, con RLS
+activado y sin políticas: solo el servidor accede.
+
+**Primer administrador:** en Authentication → Users crea el usuario (con *Auto Confirm User*) y luego ejecuta:
+
+```sql
+insert into "usuarios" ("id", "correo", "nombre", "apellido", "rol")
+select "id", "email", 'NOMBRE', 'APELLIDO', 'ADMINISTRADOR'
+from auth.users where "email" = 'CORREO-DEL-ADMIN';
+```
+
+Después, los demás usuarios (incluidos más administradores) se crean desde **Usuarios** en el panel.
+Desactiva también el registro público en Authentication → Sign In / Providers.
+
+## Tecnologías utilizadas
+
+| Tecnología | Para qué se usa |
+| --- | --- |
+| [Next.js 16](https://nextjs.org/) (App Router, JavaScript) | Rutas, páginas y API |
+| [React 19](https://react.dev/) | Interfaz del panel |
+| [Supabase](https://supabase.com/) (PostgreSQL + Auth) | Base de datos y autenticación |
+| [ESLint](https://eslint.org/) | Revisión del código |
 
 ## Arquitectura MVC
 
@@ -91,36 +195,6 @@ Bloques de 1 hora, con inicio de 08:00 a 23:00, en la zona horaria `America/Guay
 `backend/configuracion.js`. No se puede reservar en fechas pasadas ni en bloques que ya empezaron, y un mismo horario no
 admite dos reservas activas.
 
-## Puesta en marcha
-
-```bash
-npm install
-cp .env.example .env.local   # completa los 3 valores (ver abajo)
-npm run dev                  # http://localhost:3000
-```
-
-Variables de `.env.local` (el archivo no se sube a Git):
-
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
-- `SUPABASE_SECRET_KEY` — solo servidor, nunca con prefijo `NEXT_PUBLIC_`
-
-## Base de datos
-
-Las tablas (`tiposTarifa`, `usuarios`, `tarifas` y `reservas`) se crean en el SQL Editor de Supabase, con RLS
-activado y sin políticas: solo el servidor accede.
-
-**Primer administrador:** en Authentication → Users crea el usuario (con *Auto Confirm User*) y luego ejecuta:
-
-```sql
-insert into "usuarios" ("id", "correo", "nombre", "apellido", "rol")
-select "id", "email", 'NOMBRE', 'APELLIDO', 'ADMINISTRADOR'
-from auth.users where "email" = 'CORREO-DEL-ADMIN';
-```
-
-Después, los demás usuarios (incluidos más administradores) se crean desde **Usuarios** en el panel.
-Desactiva también el registro público en Authentication → Sign In / Providers.
-
 ## Roles
 
 | Acción | Administrador | Recepcionista | Cliente |
@@ -144,3 +218,16 @@ el rol a sí mismo, y no se puede eliminar ni degradar al último administrador.
 npm run lint
 npm run build
 ```
+
+## Autor
+
+<table>
+  <tr>
+    <td align="center">
+      <a href="https://github.com/Isaiahontaneda">
+        <img src="https://github.com/Isaiahontaneda.png" width="115" alt="Foto de perfil de Isaiah Ontaneda"><br>
+        <sub>Isaiah Ontaneda</sub>
+      </a>
+    </td>
+  </tr>
+</table>
