@@ -351,6 +351,11 @@ select:disabled {
   list-style: none;
 }
 
+.core--columna {
+  flex-direction: column;
+  align-items: flex-start;
+}
+
 .core__titulo {
   font-weight: 700;
   margin-right: 4px;
