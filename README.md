@@ -57,6 +57,11 @@ Proyecto académico en desarrollo.
 - **Tarifas:** el administrador crea y edita las reglas de precio sin tocar el código.
 - **Usuarios y roles:** administrador, recepcionista y cliente, con permisos distintos.
 - **Panel de administración** con resumen de reservas del día y aviso si falta la tarifa base.
+- **Reservas del cliente:** el cliente inicia sesión, ve los horarios libres, ocupados y pasados, consulta el precio
+  con su desglose y reserva en `/reservar`. La reserva queda pendiente hasta que el local la confirma. También ve sus
+  reservas y puede cancelar las pendientes que aún no empiezan. Tiene un tope de 3 reservas pendientes.
+- **Reporte de ingresos:** el administrador elige un rango de fechas y ve lo confirmado, lo pendiente y el total
+  esperado, por día o por mes.
 
 
 
@@ -200,7 +205,12 @@ admite dos reservas activas.
 | Acción | Administrador | Recepcionista | Cliente |
 | --- | :---: | :---: | :---: |
 | Tarifas y usuarios | ✔ | — | — |
-| Reservas y calculadora | ✔ | ✔ | — |
+| Reporte de ingresos | ✔ | — | — |
+| Reservas (crear, confirmar, cancelar) y calculadora | ✔ | ✔ | — |
+| Reservar para sí mismo, ver sus reservas y cancelar sus pendientes | — | — | ✔ |
+
+Al iniciar sesión, el personal entra a `/admin` y el cliente a `/reservar`. Los clientes no se registran solos: los
+crea el administrador desde **Usuarios**.
 
 El rol se lee siempre de la tabla `usuarios`, nunca del navegador. Un administrador no puede eliminarse ni quitarse
 el rol a sí mismo, y no se puede eliminar ni degradar al último administrador.
@@ -211,6 +221,11 @@ el rol a sí mismo, y no se puede eliminar ni degradar al último administrador.
 - Validación completa en el servidor; solo se guardan los campos aprobados.
 - Control de `Origin` en todas las escrituras (defensa contra CSRF).
 - La llave secreta solo existe en código de servidor; el navegador nunca habla directo con Supabase.
+- En las rutas del cliente (`/api/mis-reservas`), el dueño de la reserva es siempre el usuario de la sesión: se
+  ignora cualquier `clienteId`, `precio`, `estado` o `rol` que mande el navegador.
+- Si un cliente intenta cancelar una reserva ajena recibe 404 (igual que si no existiera), para no revelar reservas
+  de otras personas.
+- El reporte de ingresos solo responde al administrador (403 para los demás roles).
 
 ## Revisión del código
 
