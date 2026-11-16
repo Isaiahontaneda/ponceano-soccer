@@ -36,7 +36,7 @@ export default function PaginaLogin() {
       return;
     }
 
-    router.push("/admin");
+    router.push(datos.rol === "CLIENTE" ? "/reservar" : "/admin");
     router.refresh();
   }
 
