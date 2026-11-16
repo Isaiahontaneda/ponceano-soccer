@@ -27,3 +27,6 @@ export function esBloqueValido(hora) {
 
 // Hasta cuántos días en el futuro se puede reservar (evita fechas absurdas como el año 9999).
 export const MAX_DIAS_ANTICIPACION = 365;
+
+// Evita que un solo cliente bloquee todos los horarios con reservas sin confirmar.
+export const MAX_PENDIENTES_POR_CLIENTE = 3;

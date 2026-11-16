@@ -107,3 +107,24 @@ export function construirCodigo(fecha, horaInicio, sufijo) {
   const horaCompacta = recortarHora(horaInicio).replace(":", "");
   return `R-${fechaCompacta}-${horaCompacta}-${sufijo}`;
 }
+
+// ¿Puede este cliente cancelar esta reserva? Devuelve { error: null } o { error, estadoHttp }.
+//   ahora: { fecha, hora } actuales en la zona del negocio (ver hoyEnNegocio).
+export function validarCancelacionCliente(reserva, clienteIdSesion, ahora) {
+  // 404 y no 403: así no se revela que existe una reserva ajena.
+  if (!reserva || reserva.clienteId !== clienteIdSesion) {
+    return { error: "La reserva no existe", estadoHttp: 404 };
+  }
+  if (reserva.estado !== "PENDIENTE") {
+    return {
+      error: "Solo puedes cancelar reservas pendientes. Para una confirmada, comunícate con el local.",
+      estadoHttp: 409,
+    };
+  }
+  const yaEmpezo =
+    reserva.fecha < ahora.fecha ||
+    (reserva.fecha === ahora.fecha && recortarHora(reserva.horaInicio) <= ahora.hora);
+  if (yaEmpezo) return { error: "Esa reserva ya pasó.", estadoHttp: 409 };
+
+  return { error: null };
+}
