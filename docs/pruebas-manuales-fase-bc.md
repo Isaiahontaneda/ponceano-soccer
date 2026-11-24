@@ -18,7 +18,7 @@ navegador (F12 → Consola) y pega el código. Cada ejemplo imprime el código d
 | 3 | Con la sesión del Cliente A, abre `/admin`. | Redirige a `/reservar`. |
 | 4 | Mira el campo de fecha. | Trae la fecha de hoy y no deja elegir días anteriores. |
 | 5 | Mira los bloques de hoy. | Las horas que ya pasaron dicen "Pasado" y están deshabilitadas. |
-| 6 | Elige una fecha futura y pulsa un bloque libre. | Aparece el desglose (tarifa base, recargos, descuento si aplica) y el precio final. |
+| 6 | Elige una fecha futura y pulsa un bloque libre. | Aparece "Precio por hora" con el precio final (desde el Core v2, el cliente no ve el desglose). |
 | 7 | Pulsa "Reservar". | Mensaje "Reserva R-…: Pendiente de confirmación." La reserva aparece en "Mis reservas" como Pendiente. |
 | 8 | Mira el bloque que acabas de reservar. | Dice "Ocupado" y está deshabilitado. |
 | 9 | Compara el precio de la tabla con el de la Calculadora del panel (mismo cliente, fecha y hora). | Es el mismo. |
