@@ -1,6 +1,6 @@
 // Utilidades de fecha y hora. Funciones puras: no dependen de la zona horaria
 // del servidor, salvo hoyEnNegocio(), que usa explícitamente la del negocio.
-import { ZONA_HORARIA } from "./configuracion.js";
+import { MESES_INVIERNO, ZONA_HORARIA } from "./configuracion.js";
 
 const REGEX_FECHA = /^\d{4}-\d{2}-\d{2}$/;
 const REGEX_HORA = /^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/;
@@ -51,4 +51,10 @@ export function hoyEnNegocio(ahora = new Date()) {
 
   const p = Object.fromEntries(partes.map((x) => [x.type, x.value]));
   return { fecha: `${p.year}-${p.month}-${p.day}`, hora: `${p.hour}:${p.minute}` };
+}
+
+// Temporada de una fecha AAAA-MM-DD: "INVIERNO" (diciembre a mayo) o "VERANO" (junio a noviembre).
+export function temporadaDe(fecha) {
+  const mes = Number(fecha.slice(5, 7));
+  return MESES_INVIERNO.includes(mes) ? "INVIERNO" : "VERANO";
 }
