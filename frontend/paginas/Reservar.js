@@ -8,15 +8,9 @@ import { dolares, fechaLegible, hora, NOMBRE_ESTADO } from "@/frontend/utilidade
 import { llamarApi, mensajesDeError } from "@/frontend/utilidades/api";
 import Alertas from "@/frontend/componentes/Alertas";
 import Confirmacion from "@/frontend/componentes/Confirmacion";
+import TarifasEstandar from "@/frontend/componentes/TarifasEstandar";
 
 const BLOQUES = bloquesHorarios();
-
-// Texto del efecto de una línea del desglose: "$40.00", "+25 %" o "−10 %".
-function efectoLinea(linea) {
-  if (linea.tipo === "BASE") return dolares(linea.monto);
-  const signo = linea.porcentaje < 0 ? "−" : "+";
-  return `${signo}${Math.abs(linea.porcentaje)} %`;
-}
 
 // ¿La reserva sigue pendiente y todavía no empieza? (El servidor lo vuelve a comprobar.)
 function sePuedeCancelar(reserva, ahora) {
@@ -24,31 +18,6 @@ function sePuedeCancelar(reserva, ahora) {
   return (
     reserva.fecha > ahora.fecha ||
     (reserva.fecha === ahora.fecha && hora(reserva.horaInicio) > ahora.hora)
-  );
-}
-
-// Desglose del precio tal como lo devuelve el Core. Aquí no se recalcula nada.
-function Desglose({ precio }) {
-  return (
-    <div className="tabla-contenedor" aria-live="polite">
-      <table className="desglose">
-        <caption className="solo-lectores">Desglose del precio</caption>
-        <tbody>
-          {precio.desglose.map((linea, i) => (
-            <tr key={i}>
-              <td>{linea.concepto}</td>
-              <td>{efectoLinea(linea)}</td>
-            </tr>
-          ))}
-        </tbody>
-        <tfoot>
-          <tr>
-            <td>Precio final</td>
-            <td>{dolares(precio.precio)}</td>
-          </tr>
-        </tfoot>
-      </table>
-    </div>
   );
 }
 
@@ -105,7 +74,7 @@ export default function PaginaReservar() {
   const [fecha, setFecha] = useState("");
   const [horaInicio, setHoraInicio] = useState("");
   const [disponibilidad, setDisponibilidad] = useState(null); // { libres, ocupados, pasados }
-  const [precio, setPrecio] = useState(null); // resultado de /api/precio/calcular
+  const [precio, setPrecio] = useState(null); // { precio }: el servidor no le envía el desglose al cliente
   const [reservas, setReservas] = useState([]);
   const [errores, setErrores] = useState([]);
   const [mensaje, setMensaje] = useState("");
@@ -252,6 +221,8 @@ export default function PaginaReservar() {
 
       <Alertas errores={errores} mensaje={mensaje} />
 
+      <TarifasEstandar />
+
       <section className="tarjeta">
         <h2>Nueva reserva</h2>
         <div className="formulario formulario--filtro">
@@ -295,8 +266,9 @@ export default function PaginaReservar() {
 
         {precio && (
           <>
-            <Desglose precio={precio} />
-            <p className="precio-grande">{dolares(precio.precio)}</p>
+            <p aria-live="polite">
+              Precio por hora: <strong className="precio-grande">{dolares(precio.precio)}</strong>
+            </p>
             <button type="button" className="boton" onClick={reservar} disabled={guardando}>
               {guardando ? "Reservando…" : "Reservar"}
             </button>

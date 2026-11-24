@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { llamarApi, mensajesDeError } from "@/frontend/utilidades/api";
 import Alertas from "@/frontend/componentes/Alertas";
+import TarifasEstandar from "@/frontend/componentes/TarifasEstandar";
 
 // Módulos del panel y qué roles pueden verlos.
 const MODULOS = [
@@ -88,6 +89,8 @@ export default function PortadaAdmin() {
           </Link>
         ))}
       </nav>
+
+      {resumen && <TarifasEstandar />}
     </div>
   );
 }
