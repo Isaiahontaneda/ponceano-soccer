@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requerirPersonal } from "@/backend/auth";
+import { requerirRol } from "@/backend/auth";
 import { crearClienteAdmin } from "@/backend/supabase/admin";
 import { fechaValida, hoyEnNegocio } from "@/backend/fechas";
 import { calcularDisponibilidad } from "@/backend/validaciones/reserva";
@@ -7,7 +7,8 @@ import { errorInterno, respuestaDenegada } from "@/backend/http";
 
 // Bloques libres, ocupados y pasados de una fecha: GET /api/reservas/disponibilidad?fecha=AAAA-MM-DD
 export async function GET(request) {
-  const permiso = await requerirPersonal();
+  // También el cliente: solo se devuelven horas, no datos de personas.
+  const permiso = await requerirRol(["ADMINISTRADOR", "RECEPCIONISTA", "CLIENTE"]);
   if (permiso.error) return respuestaDenegada(permiso);
 
   const fecha = new URL(request.url).searchParams.get("fecha");

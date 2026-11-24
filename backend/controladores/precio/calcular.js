@@ -15,6 +15,7 @@ import {
 
 // Calcula el precio de una reserva con el Core (cualquier rol con sesión válida).
 // Entrada: { fecha, horaInicio, clienteId? }. El navegador nunca envía el precio.
+// El personal recibe el cálculo completo; el cliente, SOLO { precio }.
 export async function POST(request) {
   const bloqueo = verificarOrigen(request);
   if (bloqueo) return bloqueo;
@@ -62,6 +63,9 @@ export async function POST(request) {
       horaInicio: recortarHora(cuerpo.horaInicio),
       clienteId,
     });
+    // Se filtra aquí, en el servidor: si se ocultara solo en la pantalla, el cliente vería
+    // el desglose y la ocupación histórica (dato sensible del negocio) en la pestaña Red.
+    if (usuario.rol === "CLIENTE") return NextResponse.json({ precio: resultado.precio });
     return NextResponse.json(resultado);
   } catch (error) {
     if (error instanceof ErrorSinTarifaBase) {

@@ -31,10 +31,11 @@ export async function proxy(request) {
   const ruta = request.nextUrl.pathname;
   const hayYSesion = Boolean(data?.claims);
 
-  // Comodidad: sin sesión, las páginas de /admin mandan al login, y "/" manda
+  // Comodidad: sin sesión, las páginas de /admin y /reservar mandan al login, y "/" manda
   // al panel (con sesión) o al login (sin sesión).
   // La protección real está en cada ruta de la API (requerirRol / requerirAdmin).
-  if ((!hayYSesion && ruta.startsWith("/admin")) || ruta === "/") {
+  const esPrivada = ruta.startsWith("/admin") || ruta.startsWith("/reservar");
+  if ((!hayYSesion && esPrivada) || ruta === "/") {
     const destino = request.nextUrl.clone();
     destino.pathname = hayYSesion ? "/admin" : "/login";
     destino.search = "";

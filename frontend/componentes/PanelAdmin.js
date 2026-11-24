@@ -14,6 +14,7 @@ const ENLACES = [
   { href: "/admin/calculadora", texto: "Calculadora", roles: ["ADMINISTRADOR", "RECEPCIONISTA"] },
   { href: "/admin/usuarios", texto: "Usuarios", roles: ["ADMINISTRADOR"] },
   { href: "/admin/reservas", texto: "Reservas", roles: ["ADMINISTRADOR", "RECEPCIONISTA"] },
+  { href: "/admin/ingresos", texto: "Ingresos", roles: ["ADMINISTRADOR"] },
 ];
 
 const ROLES_CON_ACCESO = ["ADMINISTRADOR", "RECEPCIONISTA"];
@@ -31,7 +32,9 @@ export default function PanelAdmin({ children }) {
     // Carga inicial del usuario desde la API al abrir el panel: uso legítimo de un efecto.
     // (setUsuario se llama después de la respuesta, no de forma síncrona en el efecto.)
     llamarApi("/api/auth/yo").then((resultado) => {
-      if (resultado.ok) {
+      if (resultado.ok && resultado.datos.usuario.rol === "CLIENTE") {
+        router.push("/reservar"); // el cliente tiene su propia página
+      } else if (resultado.ok) {
         setUsuario(resultado.datos.usuario);
       } else if (resultado.estado === 401) {
         router.push("/login");

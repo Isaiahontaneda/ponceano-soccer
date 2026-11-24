@@ -46,5 +46,6 @@ export async function POST(request) {
     );
   }
 
-  return NextResponse.json({ ok: true });
+  // El rol sale del servidor; el navegador solo lo usa para decidir a qué página ir.
+  return NextResponse.json({ ok: true, rol: perfil.rol });
 }

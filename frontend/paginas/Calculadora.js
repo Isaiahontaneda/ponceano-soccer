@@ -4,17 +4,154 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { bloquesHorarios } from "@/backend/configuracion";
 import { hoyEnNegocio } from "@/backend/fechas";
-import { dolares } from "@/frontend/utilidades/formato";
+import { dolares, porcentaje } from "@/frontend/utilidades/formato";
 import { llamarApi, mensajesDeError } from "@/frontend/utilidades/api";
 import Alertas from "@/frontend/componentes/Alertas";
 
 const BLOQUES = bloquesHorarios();
 
-// Texto del efecto de una línea del desglose: "$40.00", "+25 %" o "−10 %".
+const NOMBRE_NIVEL = { ALTA: "Alta", NORMAL: "Normal", BAJA: "Baja", SIN_DATOS: "Sin datos" };
+
+// Porcentaje con signo: "+25 %", "−12.5 %" o "0 %".
+function conSigno(valor) {
+  if (valor === 0) return "0 %";
+  return `${valor < 0 ? "−" : "+"}${Math.abs(valor)} %`;
+}
+
+// Texto del efecto de una línea del desglose: un monto ("$40.00") o un porcentaje ("+25 %").
 function efectoLinea(linea) {
-  if (linea.tipo === "BASE") return dolares(linea.monto);
-  const signo = linea.porcentaje < 0 ? "−" : "+";
-  return `${signo}${Math.abs(linea.porcentaje)} %`;
+  return linea.monto !== undefined ? dolares(linea.monto) : conSigno(linea.porcentaje);
+}
+
+// Muestras de un historial: días (antiguo) o semanas (actual).
+function textoMuestras(historial) {
+  if (historial.muestras === null) return "—";
+  return `${historial.muestras} ${historial.clave === "ANTIGUO" ? "días" : "semanas"}`;
+}
+
+// Tabla de las líneas del desglose de una etapa.
+function TablaDesglose({ lineas, titulo }) {
+  return (
+    <div className="tabla-contenedor">
+      <table className="desglose">
+        <caption className="solo-lectores">{titulo}</caption>
+        <tbody>
+          {lineas.map((linea, i) => (
+            <tr key={i}>
+              <td>{linea.concepto}</td>
+              <td>{efectoLinea(linea)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// Una comparación del Core: ✔ si se cumplió, — si no (con texto, no solo el símbolo).
+function Regla({ aplicada, titulo, children }) {
+  return (
+    <li className={aplicada ? "reglas__si" : ""}>
+      <span aria-hidden="true">{aplicada ? "✔" : "—"}</span> <strong>{titulo}</strong> {children}
+    </li>
+  );
+}
+
+function EtapaReglas({ resultado }) {
+  const { comparaciones } = resultado;
+  return (
+    <section className="tarjeta">
+      <h2>1. Reglas de tarifas</h2>
+      <TablaDesglose titulo="Reglas de tarifas" lineas={resultado.desglose.filter((l) => l.etapa === 1)} />
+      <ul className="reglas">
+        <Regla aplicada={comparaciones.franja.aplicada} titulo="Comparación 1, franja horaria:">
+          {comparaciones.franja.aplicada
+            ? `la hora cae en «${comparaciones.franja.regla.nombre}»`
+            : "ninguna franja cubre esa hora (sin recargo de franja)"}
+        </Regla>
+        <Regla aplicada={comparaciones.calendario.aplicada} titulo="Comparación 2, calendario:">
+          {comparaciones.calendario.aplicada
+            ? comparaciones.calendario.reglas.map((r) => `«${r.nombre}»`).join(" + ")
+            : "ese día no tiene recargo de día de la semana ni fecha especial"}
+        </Regla>
+        <Regla aplicada={comparaciones.clienteFrecuente.aplicada} titulo="Comparación 3, cliente frecuente:">
+          {comparaciones.clienteFrecuente.aplicada
+            ? `«${comparaciones.clienteFrecuente.regla.nombre}» (se aplica en la etapa 4)`
+            : "no cumple el mínimo de reservas"}{" "}
+          ({resultado.reservasConfirmadas30Dias} reservas confirmadas en los 30 días previos)
+        </Regla>
+      </ul>
+    </section>
+  );
+}
+
+function EtapaHistorial({ historial }) {
+  return (
+    <section className="tarjeta">
+      <h2>2. Historial de demanda</h2>
+      <div className="tabla-contenedor">
+        <table className="tabla">
+          <caption className="solo-lectores">Comparaciones 4 y 5 con el historial</caption>
+          <thead>
+            <tr>
+              <th scope="col">Comparación</th>
+              <th scope="col">Ocupación</th>
+              <th scope="col">Muestras</th>
+              <th scope="col">Nivel</th>
+            </tr>
+          </thead>
+          <tbody>
+            {historial.comparaciones.map((c, i) => (
+              <tr key={c.clave}>
+                <td>
+                  {i + 4}. {c.nombre}
+                </td>
+                <td>{c.ocupacion === null ? "—" : `${porcentaje(c.ocupacion)} %`}</td>
+                <td>{textoMuestras(c)}</td>
+                <td>{NOMBRE_NIVEL[c.nivel]}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p>
+        <strong>Decisión:</strong> {historial.motivo}. Ajuste por demanda:{" "}
+        <strong>{conSigno(porcentaje(historial.ajuste))}</strong>
+      </p>
+    </section>
+  );
+}
+
+function EtapaRango({ rango, precioAntesDeDescuento }) {
+  return (
+    <section className="tarjeta">
+      <h2>3. Rango publicado</h2>
+      {rango ? (
+        <p>
+          Franja <strong>{rango.nombre}</strong>: de {dolares(rango.minimo)} a {dolares(rango.maximo)}.{" "}
+          {rango.motivo}.
+        </p>
+      ) : (
+        <p>Fuera del horario publicado: sin límites.</p>
+      )}
+      <p>
+        Precio antes de descuentos: <strong>{dolares(precioAntesDeDescuento)}</strong>
+      </p>
+    </section>
+  );
+}
+
+function EtapaFinal({ resultado }) {
+  return (
+    <section className="tarjeta" aria-live="polite">
+      <h2>4. Descuento y precio final</h2>
+      <p>
+        Descuento de cliente frecuente:{" "}
+        <strong>{resultado.descuento > 0 ? conSigno(-porcentaje(resultado.descuento)) : "no aplica"}</strong>
+      </p>
+      <p className="precio-grande">{dolares(resultado.precio)}</p>
+    </section>
+  );
 }
 
 export default function PaginaCalculadora() {
@@ -71,15 +208,13 @@ export default function PaginaCalculadora() {
 
   if (cargando) return <p className="cargando">Cargando…</p>;
 
-  const comparaciones = resultado?.comparaciones;
-
   return (
     <div className="pagina">
       <div className="pagina__cabecera">
         <div>
           <h1>Calculadora de precio</h1>
           <p className="pagina__intro">
-            Simula una reserva y mira cómo se llega al precio, paso a paso.
+            Simula una reserva y mira cómo se llega al precio, etapa por etapa.
           </p>
         </div>
       </div>
@@ -128,74 +263,10 @@ export default function PaginaCalculadora() {
 
       {resultado && (
         <>
-          <section className="tarjeta" aria-live="polite">
-            <h2>Resultado</h2>
-            <p className="precio-grande">{dolares(resultado.precio)}</p>
-
-            <div className="tabla-contenedor">
-              <table className="desglose">
-                <caption className="solo-lectores">Desglose del precio</caption>
-                <thead>
-                  <tr>
-                    <th scope="col">Concepto</th>
-                    <th scope="col">Efecto</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {resultado.desglose.map((linea, i) => (
-                    <tr key={i}>
-                      <td>{linea.concepto}</td>
-                      <td>{efectoLinea(linea)}</td>
-                    </tr>
-                  ))}
-                  <tr>
-                    <td>Subtotal: base × (1 + recargos)</td>
-                    <td>{dolares(resultado.subtotal)}</td>
-                  </tr>
-                  {resultado.descuento > 0 && (
-                    <tr>
-                      <td>Descuento aplicado al subtotal</td>
-                      <td>−{Math.round(resultado.descuento * 1000) / 10} %</td>
-                    </tr>
-                  )}
-                </tbody>
-                <tfoot>
-                  <tr>
-                    <td>Precio final</td>
-                    <td>{dolares(resultado.precio)}</td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          </section>
-
-          <section className="tarjeta">
-            <h2>Reglas aplicadas</h2>
-            <ul className="reglas">
-              <li className={comparaciones.franja.aplicada ? "reglas__si" : ""}>
-                <span aria-hidden="true">{comparaciones.franja.aplicada ? "✔" : "—"}</span>{" "}
-                <strong>1. Franja horaria:</strong>{" "}
-                {comparaciones.franja.aplicada
-                  ? `la hora cae en «${comparaciones.franja.regla.nombre}»`
-                  : "ninguna franja cubre esa hora (sin recargo de franja)"}
-              </li>
-              <li className={comparaciones.calendario.aplicada ? "reglas__si" : ""}>
-                <span aria-hidden="true">{comparaciones.calendario.aplicada ? "✔" : "—"}</span>{" "}
-                <strong>2. Calendario:</strong>{" "}
-                {comparaciones.calendario.aplicada
-                  ? comparaciones.calendario.reglas.map((r) => `«${r.nombre}»`).join(" + ")
-                  : "ese día no tiene recargo de día de la semana ni fecha especial"}
-              </li>
-              <li className={comparaciones.clienteFrecuente.aplicada ? "reglas__si" : ""}>
-                <span aria-hidden="true">{comparaciones.clienteFrecuente.aplicada ? "✔" : "—"}</span>{" "}
-                <strong>3. Cliente frecuente:</strong>{" "}
-                {comparaciones.clienteFrecuente.aplicada
-                  ? `«${comparaciones.clienteFrecuente.regla.nombre}»`
-                  : "no cumple el mínimo de reservas"}{" "}
-                ({resultado.reservasConfirmadas30Dias} reservas confirmadas en los 30 días previos)
-              </li>
-            </ul>
-          </section>
+          <EtapaReglas resultado={resultado} />
+          <EtapaHistorial historial={resultado.historial} />
+          <EtapaRango rango={resultado.rango} precioAntesDeDescuento={resultado.precioAntesDeDescuento} />
+          <EtapaFinal resultado={resultado} />
         </>
       )}
     </div>
