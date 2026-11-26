@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { calcularPrecio, clasificarDemanda, decidirAjusteDemanda } from "../backend/core/calcularPrecio.js";
-import { TARIFAS, historiales } from "./datos.js";
+import { REGLAS_CLIENTE, TARIFAS, cliente, historiales } from "./datos.js";
 
 const LUNES = "2026-11-09";
 const SABADO = "2026-11-07";
@@ -121,12 +121,13 @@ test("con demanda alta (+5 %, no muy alta) el máximo de la noche sigue en 50", 
 
 // ----- Orden de las etapas
 
-test("el descuento de cliente frecuente se aplica DESPUÉS del rango", () => {
+test("el beneficio del cliente se aplica DESPUÉS del rango", () => {
   const resultado = calcularPrecio(
-    { fecha: SABADO, horaInicio: "19:00", reservasConfirmadas30Dias: 3, historiales: historiales(0.95, 0.9) },
-    TARIFAS
+    { fecha: SABADO, horaInicio: "19:00", historiales: historiales(0.95, 0.9), cliente: cliente({ sellos: 3 }) },
+    TARIFAS,
+    REGLAS_CLIENTE
   );
-  // 54 × 1.10 = 59.40 → 55 (rango) → × 0.90 = 49.50.
-  // No 55.00 (descuento antes del rango) ni 53.46 (sin rango).
-  assert.equal(resultado.precio, 49.5);
+  // 54 × 1.10 = 59.40 → 55 (rango) → × 0.85 = 46.75.
+  // No 50.49, que saldría con el descuento antes del rango (59.40 × 0.85) o sin rango.
+  assert.equal(resultado.precio, 46.75);
 });
