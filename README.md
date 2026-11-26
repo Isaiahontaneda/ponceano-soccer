@@ -35,7 +35,8 @@
 
 Ponceano Soccer permite administrar las reservas de una cancha sintética de fútbol desde un panel web. El precio de
 cada reserva no se escribe a mano: se calcula automáticamente a partir de reglas de tarifas (franja horaria, día de la
-semana, feriados y descuento por cliente frecuente) que el administrador mantiene en el mismo panel.
+semana y feriados), el historial de demanda y las reglas de fidelidad del cliente, que el administrador mantiene en el
+mismo panel.
 
 Proyecto de la UDLA, curso Ingeniería Web (Tarea 8, Administración MVC).
 
@@ -55,11 +56,15 @@ Proyecto académico en desarrollo.
 - **Cálculo automático del precio** con desglose paso a paso (ver [El Core](#el-core-cómo-se-calcula-el-precio)).
 - **Calculadora:** simula el precio de una reserva y muestra qué reglas se aplicaron.
 - **Tarifas:** el administrador crea y edita las reglas de precio sin tocar el código.
+- **Reglas de cliente (fidelidad):** tarjeta de sellos, bienvenida, reserva anticipada y horario de baja demanda. El
+  administrador las crea, edita, activa o desactiva en `/admin/reglas-cliente`. Los descuentos no se acumulan: se
+  aplica solo el mayor, y cada reserva guarda qué regla le dio el descuento.
 - **Usuarios y roles:** administrador, recepcionista y cliente, con permisos distintos.
 - **Panel de administración** con resumen de reservas del día y aviso si falta la tarifa base.
 - **Reservas del cliente:** el cliente inicia sesión, ve los horarios libres, ocupados y pasados, consulta el precio
-  con su desglose y reserva en `/reservar`. La reserva queda pendiente hasta que el local la confirma. También ve sus
-  reservas y puede cancelar las pendientes que aún no empiezan. Tiene un tope de 3 reservas pendientes.
+  y reserva en `/reservar`. Ve el precio final y, si lo hay, el descuento que recibe, pero **no** el desglose ni los
+  datos de demanda. En "Tus beneficios" ve su tarjeta de sellos y las reglas activas. La reserva queda pendiente hasta que el local la confirma. También ve sus
+  reservas, con el descuento aplicado en cada una, y puede cancelar las pendientes que aún no empiezan. Tiene un tope de 3 reservas pendientes.
 - **Reporte de ingresos:** el administrador elige un rango de fechas y ve lo confirmado, lo pendiente y el total
   esperado, por día o por mes.
 
@@ -97,7 +102,7 @@ Variables de `.env.local` (el archivo no se sube a Git):
 
 ### Base de datos
 
-Las tablas (`tiposTarifa`, `usuarios`, `tarifas` y `reservas`) se crean en el SQL Editor de Supabase, con RLS
+Las tablas (`tiposTarifa`, `usuarios`, `tarifas`, `reservas`, `tiposReglaCliente` y `reglasCliente`) se crean en el SQL Editor de Supabase, con RLS
 activado y sin políticas: solo el servidor accede.
 
 **Primer administrador:** en Authentication → Users crea el usuario (con *Auto Confirm User*) y luego ejecuta:
@@ -138,30 +143,32 @@ una sola línea que apunta a su controlador (`app/api/**/route.js`) o a su panta
 
 El Core es el módulo que decide cuánto cuesta una reserva. Está en `backend/core/calcularPrecio.js` y es una
 **función pura**: no lee la base de datos ni la hora del servidor. `backend/core/servicioPrecio.js` le entrega las
-tarifas, las reservas confirmadas del cliente y dos historiales de demanda. Los parámetros (umbrales, ajustes y
+tarifas, dos historiales de demanda, las reglas de fidelidad y los datos del cliente (reservas previas, confirmadas
+desde el último sello y días de anticipación). Los parámetros (umbrales, ajustes y
 rangos) están en `backend/configuracion.js`.
 
 El cálculo tiene **4 etapas** y **5 comparaciones**:
 
 ```
-ETAPA 1  Reglas de tarifas   subtotal = base × (1 + recargos)          comparaciones 1, 2 y 3
-ETAPA 2  Historial           ajustado = subtotal × (1 + ajuste)        comparaciones 4 y 5
-ETAPA 3  Rango publicado     acotado  = ajustado limitado al rango de su franja
-ETAPA 4  Cliente frecuente   precio   = acotado × (1 − descuento)
+ETAPA 1  Reglas de tarifas       subtotal = base × (1 + recargos)            comparaciones 1 y 2
+ETAPA 2  Historial               ajustado = subtotal × (1 + ajuste)          comparaciones 3 y 4
+ETAPA 3  Rango publicado         acotado  = ajustado limitado al rango de su franja
+ETAPA 4  Beneficios del cliente  precio   = acotado × (1 − mayor descuento)  comparación 5
 ```
 
-1. **Reglas de tarifas** (`tarifas.forEach`): se compara la hora contra cada **franja horaria** (comparación 1); el
-   día de la semana y la fecha contra las reglas de **calendario** (comparación 2), y las reservas confirmadas del
-   cliente en los 30 días previos contra el mínimo de **cliente frecuente** (comparación 3). Los recargos se suman.
+1. **Reglas de tarifas** (`tarifas.forEach`): se compara la hora contra cada **franja horaria** (comparación 1), y
+   el día de la semana y la fecha contra las reglas de **calendario** (comparación 2). Los recargos se suman.
 2. **Historial** (`historiales.forEach`): la ocupación del mismo bloque se clasifica en Alta (≥ 70 %), Normal, Baja
-   (≤ 25 %) o Sin datos, en el **historial antiguo** (3 años, misma temporada; comparación 4) y en el **historial
-   actual** (últimas 8 semanas; comparación 5). Solo si **ambos coinciden** se ajusta el precio: +5 % o +10 % (muy
+   (≤ 25 %) o Sin datos, en el **historial antiguo** (3 años, misma temporada; comparación 3) y en el **historial
+   actual** (últimas 8 semanas; comparación 4). Solo si **ambos coinciden** se ajusta el precio: +5 % o +10 % (muy
    alta, promedio ≥ 85 %), y −5 % o −12.5 % (muy baja, promedio ≤ 15 %). Si no coinciden o falta un historial, no
    hay ajuste.
 3. **Rango publicado:** el precio se limita al rango de su franja: Mañana $35–$40, Tarde $38–$45, Noche $45–$50
    (hasta $55 solo con demanda muy alta).
-4. **Cliente frecuente:** el descuento se aplica al final, después del rango. Por eso un cliente frecuente puede
-   pagar menos que el mínimo publicado.
+4. **Beneficios del cliente** (`reglasCliente.forEach`, comparación 5): una regla aplica si está activa, vigente en
+   la fecha de la reserva y el cliente cumple su condición (3 confirmadas desde el último sello, primera reserva, 7
+   días de anticipación u horario de baja demanda según la etapa 2). Se aplica **solo el mayor** descuento, después
+   del rango; por eso un cliente puede pagar menos que el mínimo publicado. Con "Sin cliente" no hay beneficios.
 
 Todo se calcula con enteros (centavos y milésimas) y se redondea **una sola vez**, al final, a 2 decimales con la
 mitad hacia arriba. La explicación detallada, con números de línea y una guía de demostración, está en
@@ -177,15 +184,27 @@ mitad hacia arriba. La explicación detallada, con números de línea y una guí
 | Franja horaria | Hora de inicio y de fin | Porcentaje de recargo (ej. `25`) |
 | Día de la semana | Un día (domingo a sábado) | Porcentaje de recargo |
 | Fecha especial | Una fecha (ej. un feriado) | Porcentaje de recargo |
-| Cliente frecuente | Mínimo de reservas confirmadas | Porcentaje de descuento |
 
 En el panel, los porcentajes se escriben con máximo 1 decimal (ej. `12.5`) y el servidor los guarda como decimal
-(`0.125`). La tarifa base lleva máximo 2 decimales.
+(`0.125`). La tarifa base lleva máximo 2 decimales. El antiguo tipo "Cliente frecuente" se retiró: lo reemplaza la
+regla de cliente "Tarjeta de sellos".
+
+### Reglas de cliente
+
+| Tipo | Parámetro | Regla inicial |
+| --- | --- | --- |
+| Tarjeta de sellos | Cada N reservas confirmadas (1 a 50) | −15 % cada 3 reservas |
+| Bienvenida | — | −10 % en la primera reserva |
+| Reserva anticipada | Días de anticipación (1 a 365) | −5 % con 7 días o más |
+| Horario valle | — | −10 % con demanda baja o muy baja |
+
+El descuento se escribe en porcentaje (0.1 a 50, máximo 1 decimal). Solo puede haber una regla activa por tipo, el
+tipo no cambia al editar y una regla que ya se aplicó en reservas no se borra: se desactiva.
 
 ### Ejemplo con las tarifas del negocio
 
 Base $40; Día 08:00–17:59 (0 %); Hora pico 18:00–21:59 (+25 %); Noche 22:00–23:59 (+12.5 %); Sábado (+10 %);
-Feriado 2026-11-02 (+20 %); Cliente frecuente (−10 % desde 3 reservas).
+Feriado 2026-11-02 (+20 %). Reglas de cliente: las 4 iniciales.
 
 | Reserva | Cálculo | Precio |
 | --- | --- | --- |
@@ -197,11 +216,15 @@ Feriado 2026-11-02 (+20 %); Cliente frecuente (−10 % desde 3 reservas).
 | Sábado 19:00 con demanda muy alta | 54 × 1.10 = 59.40 → máximo alto | $55.00 |
 | Lunes 22:00 con demanda alta | 45 × 1.05 | $47.25 |
 | Lunes 09:00 con demanda muy baja | 40 × 0.875 | $35.00 |
-| Sábado 19:00, demanda muy alta y cliente frecuente | 55 × 0.90 | $49.50 |
+| Lunes 2026-11-30, 10:00, primera reserva del cliente | 40 × 0.90 (bienvenida) | $36.00 |
+| Lunes 10:00, 3 sellos y 9 días de anticipación | gana el mayor: 40 × 0.85 | $34.00 |
+| Sábado 2026-12-05, 19:00, 7 días de anticipación | 54 → 50 × 0.95 | $47.50 |
+| Sábado 19:00, demanda muy alta y 3 sellos | 55 × 0.85 | $46.75 |
+| Lunes 09:00, demanda muy baja (horario valle) | 35 × 0.90 | $31.50 |
 
 Sin historial (o con historiales que no coinciden) no hay ajuste por demanda.
 
-### Migraciones del historial
+### Migraciones
 
 Se ejecutan a mano en el SQL Editor de Supabase, **en este orden**:
 
@@ -209,11 +232,17 @@ Se ejecutan a mano en el SQL Editor de Supabase, **en este orden**:
    simuladas) y la vista `ocupacionHistorica`. Sin ella, no se puede calcular ningún precio.
 2. `supabase/migraciones/002_reservas_recientes_demo.sql`: antes, cambia `CORREO-CLIENTE-DEMO` por el correo de un
    usuario con rol Cliente. Crea reservas confirmadas desde el 2026-11-01 hasta ayer, a nombre de ese cliente
-   (alimentan el historial actual y cuentan para su descuento de cliente frecuente).
+   (alimentan el historial actual y cuentan para la tarjeta de sellos de ese cliente).
+3. `supabase/migraciones/003_reglas_cliente.sql`: crea `tiposReglaCliente`, `reglasCliente` (con las 4 reglas
+   iniciales) y las columnas `reglaClienteId` y `descuento` en `reservas`. Se ejecuta **antes** de desplegar el
+   código nuevo, que ya lee esas tablas.
+4. `supabase/migraciones/004_retirar_cliente_frecuente.sql`: borra las tarifas y el tipo `CLIENTE_FRECUENTE`. Se
+   ejecuta **después** de desplegar el código nuevo en producción, que ya ignora esas tarifas. Si se ejecuta antes, el
+   sitio en producción (código viejo) pierde el descuento de cliente frecuente.
 
 ### Reglas que protegen el cálculo
 
-- No se puede eliminar la tarifa base ni la última regla de cada grupo (franja, calendario o cliente frecuente); así
+- No se puede eliminar la tarifa base ni la última regla de cada grupo (franja o calendario); así
   siempre hay algo contra lo que comparar.
 - Las franjas horarias no pueden cruzarse, y no se repiten ni el día de la semana ni la fecha especial.
 - El precio de una reserva lo calcula siempre el servidor; el que envíe el navegador se ignora.
@@ -229,10 +258,11 @@ admite dos reservas activas.
 
 | Acción | Administrador | Recepcionista | Cliente |
 | --- | :---: | :---: | :---: |
-| Tarifas y usuarios | ✔ | — | — |
+| Tarifas, reglas de cliente y usuarios | ✔ | — | — |
 | Reporte de ingresos | ✔ | — | — |
-| Reservas (crear, confirmar, cancelar) y calculadora | ✔ | ✔ | — |
+| Reservas (crear, confirmar, cancelar) y calculadora, con todas las reglas de cliente evaluadas y su motivo | ✔ | ✔ | — |
 | Reservar para sí mismo, ver sus reservas y cancelar sus pendientes | — | — | ✔ |
+| Ver sus beneficios (sellos, reglas activas y descuento aplicado), sin datos de demanda | — | — | ✔ |
 
 Al iniciar sesión, el personal entra a `/admin` y el cliente a `/reservar`. Los clientes no se registran solos: los
 crea el administrador desde **Usuarios**.
@@ -251,9 +281,15 @@ el rol a sí mismo, y no se puede eliminar ni degradar al último administrador.
 - Si un cliente intenta cancelar una reserva ajena recibe 404 (igual que si no existiera), para no revelar reservas
   de otras personas.
 - El reporte de ingresos solo responde al administrador (403 para los demás roles).
-- El cliente recibe del cálculo de precio **solo** `{ precio }`: el desglose y la ocupación histórica (dato sensible
-  del negocio) se filtran en el servidor, no solo en la pantalla.
-- `historialReservas` y `ocupacionHistorica` no tienen permisos para `anon` ni `authenticated`: solo el servidor las
+- El cliente recibe del cálculo de precio **solo** `{ precio, beneficio }`: el desglose, el historial, el rango y las
+  reglas evaluadas (datos del negocio) se filtran en el servidor, no solo en la pantalla.
+- `GET /api/mis-beneficios` usa siempre el cliente de la sesión, nunca un id enviado por el navegador, y no devuelve
+  ocupaciones ni datos del historial.
+- El precio, el descuento y la regla aplicada los decide siempre el servidor; se ignora cualquier `precio`,
+  `descuento`, `reglaClienteId` o `estado` que envíe el navegador.
+- Las rutas de reglas de cliente (`/api/reglas-cliente`, `/api/tipos-regla-cliente`) solo responden al
+  administrador. Los errores de la base de datos nunca se muestran: borrar una regla ya usada responde 409.
+- `historialReservas`, `ocupacionHistorica`, `tiposReglaCliente` y `reglasCliente` no tienen permisos para `anon` ni `authenticated`: solo el servidor las
   lee, con la llave secreta.
 
 ## Revisión del código
@@ -261,6 +297,7 @@ el rol a sí mismo, y no se puede eliminar ni degradar al último administrador.
 ```bash
 npm run lint
 npm run build
+npm test
 ```
 
 ## Autor
