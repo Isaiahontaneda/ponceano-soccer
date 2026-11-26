@@ -13,9 +13,15 @@ import {
   solicitudInvalida,
 } from "@/backend/http";
 
+// Lo único que recibe el cliente: el precio y, si hubo, el beneficio aplicado.
+function respuestaCliente({ precio, beneficios }) {
+  const { aplicada } = beneficios;
+  return { precio, beneficio: aplicada ? { nombre: aplicada.nombre, descuento: aplicada.descuento } : null };
+}
+
 // Calcula el precio de una reserva con el Core (cualquier rol con sesión válida).
 // Entrada: { fecha, horaInicio, clienteId? }. El navegador nunca envía el precio.
-// El personal recibe el cálculo completo; el cliente, SOLO { precio }.
+// El personal recibe el cálculo completo; el cliente, SOLO { precio, beneficio }.
 export async function POST(request) {
   const bloqueo = verificarOrigen(request);
   if (bloqueo) return bloqueo;
@@ -65,7 +71,8 @@ export async function POST(request) {
     });
     // Se filtra aquí, en el servidor: si se ocultara solo en la pantalla, el cliente vería
     // el desglose y la ocupación histórica (dato sensible del negocio) en la pestaña Red.
-    if (usuario.rol === "CLIENTE") return NextResponse.json({ precio: resultado.precio });
+    // Sí ve su beneficio: un programa de fidelidad que el cliente no ve no fideliza.
+    if (usuario.rol === "CLIENTE") return NextResponse.json(respuestaCliente(resultado));
     return NextResponse.json(resultado);
   } catch (error) {
     if (error instanceof ErrorSinTarifaBase) {

@@ -16,23 +16,33 @@ import {
 
 // Rutas del cliente. El dueño de las reservas es SIEMPRE el usuario de la sesión:
 // se ignora cualquier clienteId, precio, estado o rol que mande el navegador.
-const CAMPOS = "id, codigo, fecha, horaInicio, estado, precio";
+const CAMPOS = "id, codigo, fecha, horaInicio, estado, precio, descuento, reglaClienteId";
 
 // Las reservas del cliente de la sesión, de la más reciente a la más antigua.
+// Cada una trae "beneficio" (nombre de la regla que dio el descuento) o null.
 export async function GET() {
   const permiso = await requerirRol(["CLIENTE"]);
   if (permiso.error) return respuestaDenegada(permiso);
 
-  const { data, error } = await crearClienteAdmin()
-    .from("reservas")
-    .select(CAMPOS)
-    .eq("clienteId", permiso.usuario.id)
-    .order("fecha", { ascending: false })
-    .order("horaInicio", { ascending: false })
-    .limit(100);
-  if (error) return errorInterno(error, "No se pudieron cargar tus reservas");
+  const admin = crearClienteAdmin();
+  const [resReservas, resReglas] = await Promise.all([
+    admin
+      .from("reservas")
+      .select(CAMPOS)
+      .eq("clienteId", permiso.usuario.id)
+      .order("fecha", { ascending: false })
+      .order("horaInicio", { ascending: false })
+      .limit(100),
+    admin.from("reglasCliente").select("id, nombre"),
+  ]);
+  if (resReservas.error) return errorInterno(resReservas.error, "No se pudieron cargar tus reservas");
+  if (resReglas.error) return errorInterno(resReglas.error, "No se pudieron cargar tus reservas");
 
-  return NextResponse.json({ reservas: data });
+  const reservas = resReservas.data.map((r) => ({
+    ...r,
+    beneficio: resReglas.data.find((regla) => regla.id === r.reglaClienteId)?.nombre ?? null,
+  }));
+  return NextResponse.json({ reservas });
 }
 
 // El cliente crea una reserva para sí mismo. Entrada: { fecha, horaInicio }.

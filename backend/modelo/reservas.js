@@ -4,7 +4,7 @@ import { calcularPrecioReserva } from "@/backend/core/servicioPrecio";
 import { ErrorSinTarifaBase } from "@/backend/core/calcularPrecio";
 import { ALFABETO_CODIGO, construirCodigo } from "@/backend/validaciones/reserva";
 
-export const CAMPOS_RESERVA = "id, codigo, fecha, horaInicio, estado, precio, clienteId";
+export const CAMPOS_RESERVA = "id, codigo, fecha, horaInicio, estado, precio, descuento, reglaClienteId, clienteId";
 const INTENTOS_CODIGO = 5;
 
 function sufijoAleatorio() {
@@ -19,7 +19,7 @@ function fallo(error, mensaje) {
   return { estado: 500, cuerpo: { error: mensaje } };
 }
 
-// Crea una reserva PENDIENTE con el precio del Core.
+// Crea una reserva PENDIENTE con el precio del Core y el beneficio que se aplicó (si hubo).
 // Los datos deben venir ya validados (validarNuevaReserva).
 // Devuelve { estado, cuerpo } para responder directo con NextResponse.json(cuerpo, { status: estado }).
 export async function crearReserva(admin, { clienteId, fecha, horaInicio }) {
@@ -44,10 +44,13 @@ export async function crearReserva(admin, { clienteId, fecha, horaInicio }) {
   if (errorHorario) return fallo(errorHorario, "No se pudo crear la reserva");
   if (ocupada) return { estado: 409, cuerpo: { error: "Ese horario ya está reservado" } };
 
-  // Precio calculado por el Core en el servidor.
-  let precio;
+  // Precio y beneficio calculados por el Core en el servidor. Quedan fijos en la reserva, como el precio.
+  let precio, reglaClienteId, descuento;
   try {
-    ({ precio } = await calcularPrecioReserva({ clienteId, fecha, horaInicio }));
+    const resultado = await calcularPrecioReserva({ clienteId, fecha, horaInicio });
+    precio = resultado.precio;
+    descuento = resultado.descuento;
+    reglaClienteId = resultado.beneficios.aplicada?.id ?? null;
   } catch (error) {
     if (error instanceof ErrorSinTarifaBase) {
       return {
@@ -58,11 +61,11 @@ export async function crearReserva(admin, { clienteId, fecha, horaInicio }) {
     return fallo(error, "No se pudo calcular el precio de la reserva");
   }
 
-  return insertarReserva(admin, { clienteId, fecha, horaInicio, precio });
+  return insertarReserva(admin, { clienteId, fecha, horaInicio, precio, reglaClienteId, descuento });
 }
 
 // Inserta la reserva. Si el código generado ya existe (columna "codigo" única), prueba con otro.
-async function insertarReserva(admin, { clienteId, fecha, horaInicio, precio }) {
+async function insertarReserva(admin, { clienteId, fecha, horaInicio, precio, reglaClienteId, descuento }) {
   for (let intento = 0; intento < INTENTOS_CODIGO; intento++) {
     const { data: creada, error } = await admin
       .from("reservas")
@@ -72,6 +75,8 @@ async function insertarReserva(admin, { clienteId, fecha, horaInicio, precio }) 
         horaInicio,
         estado: "PENDIENTE",
         precio,
+        reglaClienteId,
+        descuento,
         clienteId,
       })
       .select(CAMPOS_RESERVA)
