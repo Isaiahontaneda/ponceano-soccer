@@ -40,8 +40,8 @@ export default function TarifasEstandar() {
             ))}
           </ul>
           <p className="campo__ayuda">
-            El precio exacto depende del día, la hora y la demanda. Precios antes de descuentos: los
-            clientes frecuentes reciben un descuento adicional.
+            El precio exacto depende del día, la hora y la demanda. Precios antes de descuentos: revisa
+            tus beneficios de cliente.
           </p>
         </>
       )}

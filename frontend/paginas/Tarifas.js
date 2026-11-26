@@ -16,13 +16,14 @@ const FORMULARIO_VACIO = {
   horaFin: "",
   diaSemana: "",
   fecha: "",
-  minReservas: "",
 };
+
+// Tipos que ya no se ofrecen: el descuento de cliente frecuente ahora es una regla del cliente.
+const TIPOS_RETIRADOS = ["CLIENTE_FRECUENTE"];
 
 // Texto del valor según el tipo: base en dólares, el resto en porcentaje.
 function valorTexto(t) {
   if (t.tipoCodigo === "BASE") return dolares(t.valor);
-  if (t.tipoCodigo === "CLIENTE_FRECUENTE") return `−${porcentaje(t.valor)} %`;
   return `+${porcentaje(t.valor)} %`;
 }
 
@@ -36,8 +37,6 @@ function detalleTexto(t) {
       return DIAS[t.diaSemana];
     case "FECHA_ESPECIAL":
       return t.fecha;
-    case "CLIENTE_FRECUENTE":
-      return `Desde ${t.minReservas} reservas confirmadas`;
     default:
       return "";
   }
@@ -55,8 +54,6 @@ function efectoTexto(t, base) {
     case "DIA_SEMANA":
     case "FECHA_ESPECIAL":
       return "Se suma al recargo de la franja";
-    case "CLIENTE_FRECUENTE":
-      return "Se resta al final, sobre el subtotal";
     default:
       return "—";
   }
@@ -95,8 +92,9 @@ export default function PaginaTarifas() {
       return;
     }
 
-    setTarifas(resTarifas.datos.tarifas);
-    setTipos(resTipos.datos.tipos);
+    // Las tarifas de tipos retirados se ignoran en el cálculo y las borra la migración 004.
+    setTarifas(resTarifas.datos.tarifas.filter((t) => !TIPOS_RETIRADOS.includes(t.tipoCodigo)));
+    setTipos(resTipos.datos.tipos.filter((t) => !TIPOS_RETIRADOS.includes(t.codigo)));
     setCargando(false);
   }, [router]);
 
@@ -129,13 +127,12 @@ export default function PaginaTarifas() {
     setFormulario({
       tipoId: String(t.tipoId),
       nombre: t.nombre,
-      // La base se edita en dólares; recargos y descuentos, en porcentaje.
+      // La base se edita en dólares; los recargos, en porcentaje.
       valor: t.tipoCodigo === "BASE" ? String(t.valor) : String(porcentaje(t.valor)),
       horaInicio: hora(t.horaInicio),
       horaFin: hora(t.horaFin),
       diaSemana: t.diaSemana === null ? "" : String(t.diaSemana),
       fecha: t.fecha ?? "",
-      minReservas: t.minReservas === null ? "" : String(t.minReservas),
     });
     window.scrollTo(0, 0);
   }
@@ -189,12 +186,7 @@ export default function PaginaTarifas() {
     return <p className="cargando">Cargando…</p>;
   }
 
-  const etiquetaValor =
-    tipoElegido === "BASE"
-      ? "Valor (precio por hora en dólares)"
-      : tipoElegido === "CLIENTE_FRECUENTE"
-      ? "Descuento (porcentaje)"
-      : "Recargo (porcentaje)";
+  const etiquetaValor = tipoElegido === "BASE" ? "Valor (precio por hora en dólares)" : "Recargo (porcentaje)";
   const ayudaValor =
     tipoElegido === "BASE"
       ? "Ejemplo: 40 o 40.50 (máximo 2 decimales)."
@@ -206,7 +198,8 @@ export default function PaginaTarifas() {
         <div>
           <h1>Administración de tarifas</h1>
           <p className="pagina__intro">
-            Estas reglas determinan el precio de cada reserva.
+            Estas reglas determinan el precio de cada reserva. Los descuentos para clientes se
+            administran en «Reglas de cliente».
           </p>
         </div>
       </div>
@@ -315,20 +308,6 @@ export default function PaginaTarifas() {
                 type="date"
                 value={formulario.fecha}
                 onChange={(e) => cambiar("fecha", e.target.value)}
-                required
-              />
-            </label>
-          )}
-
-          {tipoElegido === "CLIENTE_FRECUENTE" && (
-            <label className="campo">
-              Mínimo de reservas confirmadas (últimos 30 días)
-              <input
-                type="number"
-                min="1"
-                step="1"
-                value={formulario.minReservas}
-                onChange={(e) => cambiar("minReservas", e.target.value)}
                 required
               />
             </label>

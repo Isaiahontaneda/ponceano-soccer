@@ -3,17 +3,16 @@ import { fechaValida, horaValida, recortarHora } from "../fechas.js";
 
 // A qué comparación del Core pertenece cada tipo de tarifa.
 // DIA_SEMANA y FECHA_ESPECIAL cuentan como un solo grupo ("calendario").
+// El descuento de cliente frecuente ya no es una tarifa: ahora es una regla del cliente (etapa 4).
 export const GRUPOS_CORE = {
   FRANJA_HORARIA: "franja",
   DIA_SEMANA: "calendario",
   FECHA_ESPECIAL: "calendario",
-  CLIENTE_FRECUENTE: "clienteFrecuente",
 };
 
 export const NOMBRE_GRUPO = {
   franja: "franja horaria",
   calendario: "calendario (día de la semana o fecha especial)",
-  clienteFrecuente: "cliente frecuente",
 };
 
 // Porcentaje escrito por el usuario (12.5) -> decimal guardado (0.125).
@@ -32,7 +31,7 @@ function aNumero(crudo) {
   return NaN;
 }
 
-// Estado de las 3 comparaciones del Core según las tarifas existentes.
+// Estado de las comparaciones de tarifas (1 y 2) según las tarifas existentes.
 // tarifas: cada una con "tipoCodigo" (o "codigo").
 export function comparacionesActivas(tarifas) {
   const codigoDe = (t) => t.tipoCodigo ?? t.codigo;
@@ -40,10 +39,9 @@ export function comparacionesActivas(tarifas) {
   const estado = {
     franja: grupos.has("franja"),
     calendario: grupos.has("calendario"),
-    clienteFrecuente: grupos.has("clienteFrecuente"),
     hayBase: tarifas.some((t) => codigoDe(t) === "BASE"),
   };
-  estado.total = [estado.franja, estado.calendario, estado.clienteFrecuente].filter(Boolean).length;
+  estado.total = [estado.franja, estado.calendario].filter(Boolean).length;
   return estado;
 }
 
@@ -78,7 +76,7 @@ export function motivoNoEliminable(tarifa, tarifas) {
 // existentes: tarifas ya guardadas, cada una con su "codigo" de tipo.
 // idEditando: id de la tarifa que se está editando (para no compararla consigo misma).
 // Devuelve { errores, datos }; "datos" solo trae los campos aprobados.
-// El valor de recargos/descuentos se recibe en PORCENTAJE y sale en decimal.
+// El valor de los recargos se recibe en PORCENTAJE y sale en decimal.
 export function validarTarifa(entrada, tipoCodigo, existentes, idEditando = null) {
   const errores = [];
   const datos = {
@@ -88,7 +86,6 @@ export function validarTarifa(entrada, tipoCodigo, existentes, idEditando = null
     horaFin: null,
     diaSemana: null,
     fecha: null,
-    minReservas: null,
   };
   const dato = entrada && typeof entrada === "object" ? entrada : {};
 
@@ -183,17 +180,8 @@ export function validarTarifa(entrada, tipoCodigo, existentes, idEditando = null
       break;
     }
 
-    case "CLIENTE_FRECUENTE": {
-      const minimo = aNumero(dato.minReservas);
-      if (!esEnteroEn(minimo, 1, 1000)) {
-        errores.push("El mínimo de reservas debe ser un número entero mayor o igual a 1.");
-        break;
-      }
-      datos.minReservas = minimo;
-      break;
-    }
-
     default:
+      // Incluye CLIENTE_FRECUENTE: ese descuento ahora se administra en "Reglas de cliente".
       errores.push("Tipo de tarifa no reconocido.");
   }
 
