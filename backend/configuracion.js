@@ -8,9 +8,6 @@ export const ZONA_HORARIA = "America/Guayaquil";
 export const HORA_APERTURA = 8;
 export const HORA_ULTIMO_BLOQUE = 23;
 
-// Ventana (en días) que usa el Core para contar reservas del cliente frecuente.
-export const DIAS_HISTORIAL_CLIENTE = 30;
-
 // Devuelve los bloques operativos como texto "HH:00": ["08:00", ..., "23:00"].
 export function bloquesHorarios() {
   const bloques = [];
@@ -59,10 +56,19 @@ export const AJUSTE_ALZA_SUAVE = 0.05;
 export const AJUSTE_BAJA_FUERTE = -0.125; // 40 × 0.875 = 35: una mañana muy vacía queda en el mínimo publicado
 export const AJUSTE_BAJA_SUAVE = -0.05;
 
-// Rangos publicados por franja (en dólares, antes del descuento de cliente frecuente).
+// Rangos publicados por franja (en dólares, antes de los beneficios del cliente).
 // No son las franjas de las tarifas (Día, Hora pico, Noche): estas solo ponen los límites del precio.
 export const RANGOS_PRECIO = [
   { franja: "MANANA", nombre: "Mañana", desde: "08:00", hasta: "11:59", minimo: 35, maximo: 40, maximoDemandaMuyAlta: 40 },
   { franja: "TARDE", nombre: "Tarde", desde: "12:00", hasta: "17:59", minimo: 38, maximo: 45, maximoDemandaMuyAlta: 45 },
   { franja: "NOCHE", nombre: "Noche", desde: "18:00", hasta: "23:59", minimo: 45, maximo: 50, maximoDemandaMuyAlta: 55 },
 ];
+
+// ----- Core v3: reglas de fidelidad del cliente -----
+
+// Límites que acepta el CRUD de reglas del cliente. El descuento se escribe en porcentaje;
+// la base de datos guarda como máximo 0.5 (50 %).
+export const DESCUENTO_REGLA_MINIMO = 0.1; // porcentaje
+export const DESCUENTO_REGLA_MAXIMO = 50; // porcentaje
+export const MAX_CADA_RESERVAS = 50; // tarjeta de sellos: "cada N reservas"
+export const MAX_DIAS_ANTICIPACION_REGLA = 365; // reserva anticipada

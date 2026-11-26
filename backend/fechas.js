@@ -36,6 +36,16 @@ export function sumarDias(fecha, dias) {
   return resultado.toISOString().slice(0, 10);
 }
 
+// Días entre dos fechas AAAA-MM-DD (hasta − desde). Negativo si "hasta" es anterior.
+// Con Date.UTC todos los días duran lo mismo, así que la división es exacta.
+export function diasEntre(desde, hasta) {
+  const aUtc = (fecha) => {
+    const [anio, mes, dia] = fecha.split("-").map(Number);
+    return Date.UTC(anio, mes - 1, dia);
+  };
+  return (aUtc(hasta) - aUtc(desde)) / 86_400_000;
+}
+
 // "Hoy" y la hora actual según la zona horaria del negocio.
 // Devuelve { fecha: "AAAA-MM-DD", hora: "HH:MM" }.
 export function hoyEnNegocio(ahora = new Date()) {

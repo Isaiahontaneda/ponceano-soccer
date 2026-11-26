@@ -1,12 +1,13 @@
 // CORE de Ponceano Soccer: cálculo del precio de una reserva, en 4 etapas.
 //
 // Función PURA: no toca la base de datos, no lee la hora del servidor ni depende de su zona
-// horaria. Todo llega por parámetros (las tarifas y los historiales los prepara servicioPrecio.js).
+// horaria. Todo llega por parámetros (tarifas, historiales, reglas y datos del cliente los prepara
+// servicioPrecio.js).
 //
-//   ETAPA 1  Reglas de tarifas   subtotal = base × (1 + recargos)            comparaciones 1, 2 y 3
-//   ETAPA 2  Historial           ajustado = subtotal × (1 + ajuste)          comparaciones 4 y 5
-//   ETAPA 3  Rango publicado     acotado  = ajustado limitado a [mínimo, máximo] de su franja
-//   ETAPA 4  Cliente frecuente   precio   = acotado × (1 − descuento)
+//   ETAPA 1  Reglas de tarifas       subtotal = base × (1 + recargos)            comparaciones 1 y 2
+//   ETAPA 2  Historial               ajustado = subtotal × (1 + ajuste)          comparaciones 3 y 4
+//   ETAPA 3  Rango publicado         acotado  = ajustado limitado a [mínimo, máximo] de su franja
+//   ETAPA 4  Beneficios del cliente  precio   = acotado × (1 − descuento)        comparación 5
 //
 // Para que el resultado sea exacto (sin errores de coma flotante como 1.005), todo se calcula
 // con enteros: la base en centavos y los porcentajes en milésimas (0.125 = 125).
@@ -57,13 +58,12 @@ function dividirRedondeando(num, den) {
 }
 
 // ---------------------------------------------------------------------------------------------
-// ETAPA 1. Reglas de tarifas: un solo recorrido por la lista; aquí ocurren las comparaciones 1, 2 y 3.
+// ETAPA 1. Reglas de tarifas: un solo recorrido por la lista; aquí ocurren las comparaciones 1 y 2.
 // ---------------------------------------------------------------------------------------------
-function aplicarReglasTarifas({ fecha, hora, dia, reservas }, tarifas) {
+function aplicarReglasTarifas({ fecha, hora, dia }, tarifas) {
   let baseCentavos = null;
   let franja = null; // regla de franja horaria que cubre la hora (o null)
   const reglasCalendario = []; // reglas de día de la semana / fecha especial que aplican
-  let frecuente = null; // regla de cliente frecuente con el mayor descuento (o null)
 
   tarifas.forEach((tarifa) => {
     switch (tarifa.tipoCodigo) {
@@ -89,23 +89,14 @@ function aplicarReglasTarifas({ fecha, hora, dia, reservas }, tarifas) {
         if (fecha === tarifa.fecha) reglasCalendario.push(tarifa);
         break;
 
-      case "CLIENTE_FRECUENTE":
-        // COMPARACIÓN 3: cliente frecuente.
-        // ¿Las reservas CONFIRMADAS de los 30 días previos alcanzan el mínimo de la regla?
-        // Si se cumplen varias reglas, se usa solo la de mayor descuento (se aplica en la etapa 4).
-        if (reservas >= tarifa.minReservas) {
-          if (frecuente === null || aMilesimas(tarifa.valor) > aMilesimas(frecuente.valor)) {
-            frecuente = tarifa;
-          }
-        }
-        break;
-
       default:
-        break; // tipo desconocido: se ignora
+        // Tipo desconocido: se ignora. Así también se ignoran las tarifas CLIENTE_FRECUENTE que queden
+        // en la base hasta ejecutar la migración 004 (ese beneficio ahora vive en la etapa 4).
+        break;
     }
   });
 
-  return { baseCentavos, franja, reglasCalendario, frecuente };
+  return { baseCentavos, franja, reglasCalendario };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -158,7 +149,7 @@ function contrastarHistorial(historiales) {
   const comparaciones = [];
 
   historiales.forEach((historial) => {
-    // COMPARACIÓN 4 (historial ANTIGUO, 3 años) y COMPARACIÓN 5 (historial ACTUAL, últimas semanas):
+    // COMPARACIÓN 3 (historial ANTIGUO, 3 años) y COMPARACIÓN 4 (historial ACTUAL, últimas semanas):
     // una por elemento de la lista. ¿La ocupación de este bloque fue alta, normal o baja?
     const nivel = clasificarDemanda(historial.ocupacion);
     const { clave, nombre, ocupacion, muestras } = historial;
@@ -209,10 +200,95 @@ function aplicarRango(ajustado, hora, demandaMuyAlta) {
 }
 
 // ---------------------------------------------------------------------------------------------
+// ETAPA 4. Beneficios del cliente (reglas de fidelidad).
+// ---------------------------------------------------------------------------------------------
+
+// ¿La regla está vigente en la fecha? Las fechas AAAA-MM-DD se comparan bien como texto.
+export function reglaVigente(regla, fecha) {
+  if (regla.vigenteDesde && fecha < regla.vigenteDesde) return false;
+  if (regla.vigenteHasta && fecha > regla.vigenteHasta) return false;
+  return true;
+}
+
+const textoReservas = (n) => (n === 1 ? "1 reserva confirmada" : `${n} reservas confirmadas`);
+const textoDias = (n) => (n === 1 ? "1 día" : `${n} días`);
+
+// Condición propia de cada tipo de regla. Devuelve { aplica, motivo }.
+function cumpleCondicion(regla, cliente, historial) {
+  switch (regla.tipoCodigo) {
+    case "TARJETA_SELLOS": {
+      const aplica = cliente.confirmadasDesdeUltimoSello >= regla.cadaReservas;
+      const motivo = `${textoReservas(cliente.confirmadasDesdeUltimoSello)} desde el último sello (se necesitan ${regla.cadaReservas})`;
+      return { aplica, motivo };
+    }
+    case "BIENVENIDA": {
+      const aplica = cliente.reservasPrevias === 0;
+      return { aplica, motivo: aplica ? "Primera reserva del cliente" : `El cliente ya tiene ${cliente.reservasPrevias} reservas` };
+    }
+    case "RESERVA_ANTICIPADA": {
+      const aplica = cliente.diasAnticipacion >= regla.diasAnticipacion;
+      const motivo = `${textoDias(cliente.diasAnticipacion)} de anticipación (se necesitan ${regla.diasAnticipacion})`;
+      return { aplica, motivo };
+    }
+    case "HORARIO_VALLE": {
+      // El Core ya sabe qué horarios están vacíos (etapa 2): esta regla convierte ese dato en un
+      // incentivo para el cliente. Aplica con demanda baja o muy baja (ajuste negativo).
+      const aplica = historial.ajuste < 0;
+      return { aplica, motivo: aplica ? "La etapa 2 detectó demanda baja en este horario" : "El horario no es de baja demanda" };
+    }
+    default:
+      return { aplica: false, motivo: "Tipo de regla desconocido" };
+  }
+}
+
+// La regla aplica si está activa, está vigente en la fecha de la reserva y cumple su condición.
+function evaluarRegla(regla, { fecha, cliente, historial }) {
+  if (!regla.activa) return { aplica: false, motivo: "Regla inactiva" };
+  if (!reglaVigente(regla, fecha)) return { aplica: false, motivo: "Fuera de vigencia en la fecha de la reserva" };
+  return cumpleCondicion(regla, cliente, historial);
+}
+
+// De las reglas que aplican, la de mayor descuento; en empate, la de menor id (o null).
+function elegirMayorDescuento(evaluadas) {
+  let mejor = null;
+  for (const regla of evaluadas) {
+    if (!regla.aplica) continue;
+    const mayor = mejor === null || regla.milesimas > mejor.milesimas;
+    const empataConMenorId = mejor !== null && regla.milesimas === mejor.milesimas && regla.id < mejor.id;
+    if (mayor || empataConMenorId) mejor = regla;
+  }
+  return mejor;
+}
+
+// cliente: { reservasPrevias, confirmadasDesdeUltimoSello, diasAnticipacion }, o null ("Sin cliente").
+function evaluarBeneficios({ fecha, cliente, historial }, reglasCliente) {
+  // Sin cliente no hay a quién darle el descuento: no se evalúa ninguna regla.
+  if (cliente === null) return { evaluadas: [], aplicada: null, milesimas: 0 };
+
+  const evaluadas = [];
+  reglasCliente.forEach((regla) => {
+    // COMPARACIÓN 5: ¿el cliente cumple esta regla de fidelidad?
+    const { aplica, motivo } = evaluarRegla(regla, { fecha, cliente, historial });
+    const milesimas = aMilesimas(regla.descuento);
+    evaluadas.push({ id: regla.id, nombre: regla.nombre, tipoCodigo: regla.tipoCodigo, milesimas, aplica, motivo });
+  });
+
+  // Los descuentos NO se acumulan: se usa solo el mayor. Así nadie suma sellos, bienvenida y
+  // reserva anticipada para pagar la mitad.
+  const mejor = elegirMayorDescuento(evaluadas);
+  const publica = ({ milesimas, ...resto }) => ({ ...resto, descuento: milesimas / 1000 });
+  return {
+    evaluadas: evaluadas.map(publica),
+    aplicada: mejor ? { id: mejor.id, nombre: mejor.nombre, descuento: mejor.milesimas / 1000 } : null,
+    milesimas: mejor ? mejor.milesimas : 0,
+  };
+}
+
+// ---------------------------------------------------------------------------------------------
 // Desglose paso a paso, en el orden de las etapas (para mostrarlo en la calculadora).
 // Cada línea lleva "monto" (dólares) o "porcentaje".
 // ---------------------------------------------------------------------------------------------
-function armarDesglose({ reglas, subtotal, historial, rango, acotado, milesimasDescuento }) {
+function armarDesglose({ reglas, subtotal, historial, rango, acotado, aplicada }) {
   const desglose = [
     { etapa: 1, concepto: "Tarifa base por hora", tipo: "BASE", monto: reglas.baseCentavos / 100 },
   ];
@@ -237,44 +313,52 @@ function armarDesglose({ reglas, subtotal, historial, rango, acotado, milesimasD
       monto: dividirRedondeando(acotado, ESCALA_AJUSTADO) / 100,
     }
   );
-  if (reglas.frecuente) {
-    desglose.push({ etapa: 4, concepto: reglas.frecuente.nombre, tipo: "CLIENTE_FRECUENTE", porcentaje: -aPorcentaje(milesimasDescuento) });
+  if (aplicada) {
+    desglose.push({ etapa: 4, concepto: aplicada.nombre, tipo: "BENEFICIO", porcentaje: -aPorcentaje(aMilesimas(aplicada.descuento)) });
   }
   return desglose;
 }
 
-// Resumen de cuáles de las comparaciones 1 a 3 se cumplieron.
-function resumirComparaciones({ franja, reglasCalendario, frecuente }) {
+// Resumen de cuáles de las comparaciones 1 y 2 se cumplieron.
+function resumirComparaciones({ franja, reglasCalendario }) {
   const resumen = (t) => ({ nombre: t.nombre, tipo: t.tipoCodigo, valor: Number(t.valor) });
   return {
     franja: { aplicada: franja !== null, regla: franja ? resumen(franja) : null },
     calendario: { aplicada: reglasCalendario.length > 0, reglas: reglasCalendario.map(resumen) },
-    clienteFrecuente: { aplicada: frecuente !== null, regla: frecuente ? resumen(frecuente) : null },
   };
+}
+
+// Los datos del cliente los cuenta el servicio: deben ser enteros (o cliente null).
+function validarCliente(cliente) {
+  if (cliente === null || cliente === undefined) return null;
+  const { reservasPrevias, confirmadasDesdeUltimoSello, diasAnticipacion } = cliente;
+  if (![reservasPrevias, confirmadasDesdeUltimoSello, diasAnticipacion].every(Number.isInteger)) {
+    throw new Error("Los datos del cliente deben ser números enteros.");
+  }
+  return { reservasPrevias, confirmadasDesdeUltimoSello, diasAnticipacion };
 }
 
 // ---------------------------------------------------------------------------------------------
 // Función principal.
-// reserva: { fecha: "AAAA-MM-DD", horaInicio: "HH:MM", reservasConfirmadas30Dias: número,
-//            historiales: [{ clave, nombre, ocupacion, muestras }] }   (historiales es opcional)
-// tarifas: [{ tipoCodigo, nombre, valor, horaInicio, horaFin, diaSemana, fecha, minReservas }]
+// reserva: { fecha: "AAAA-MM-DD", horaInicio: "HH:MM",
+//            historiales: [{ clave, nombre, ocupacion, muestras }],                 (opcional)
+//            cliente: { reservasPrevias, confirmadasDesdeUltimoSello, diasAnticipacion } | null }
+// tarifas: [{ tipoCodigo, nombre, valor, horaInicio, horaFin, diaSemana, fecha }]
+// reglasCliente: [{ id, tipoCodigo, nombre, descuento, cadaReservas, diasAnticipacion, activa,
+//                   vigenteDesde, vigenteHasta }]                                   (opcional)
 // ---------------------------------------------------------------------------------------------
-export function calcularPrecio({ fecha, horaInicio, reservasConfirmadas30Dias = 0, historiales = [] }, tarifas) {
+export function calcularPrecio({ fecha, horaInicio, historiales = [], cliente = null }, tarifas, reglasCliente = []) {
   if (!fechaValida(fecha)) throw new Error("Fecha inválida: se esperaba AAAA-MM-DD.");
   if (!horaValida(horaInicio)) throw new Error("Hora inválida: se esperaba HH:MM.");
-  const reservas = Number(reservasConfirmadas30Dias);
-  if (!Number.isFinite(reservas) || reservas < 0) {
-    throw new Error("El número de reservas confirmadas debe ser un número válido.");
-  }
+  const datosCliente = validarCliente(cliente);
   const hora = recortarHora(horaInicio);
 
   // ETAPA 1: subtotal = base × (1 + recargos), en centavos × 10³.
-  const reglas = aplicarReglasTarifas({ fecha, hora, dia: diaSemanaDe(fecha), reservas }, tarifas);
+  const reglas = aplicarReglasTarifas({ fecha, hora, dia: diaSemanaDe(fecha) }, tarifas);
   if (reglas.baseCentavos === null) throw new ErrorSinTarifaBase();
   const milesimasFranja = reglas.franja ? aMilesimas(reglas.franja.valor) : 0;
   const milesimasCalendario = reglas.reglasCalendario.reduce((suma, r) => suma + aMilesimas(r.valor), 0);
   const milesimasRecargos = milesimasFranja + milesimasCalendario;
-  const milesimasDescuento = reglas.frecuente ? aMilesimas(reglas.frecuente.valor) : 0;
   const subtotal = reglas.baseCentavos * (1000 + milesimasRecargos);
 
   // ETAPA 2: ajustado = subtotal × (1 + ajuste por demanda), en centavos × 10⁶.
@@ -284,7 +368,14 @@ export function calcularPrecio({ fecha, horaInicio, reservasConfirmadas30Dias = 
   // ETAPA 3: el precio general se limita al rango publicado de su franja (antes del descuento).
   const { acotado, rango } = aplicarRango(ajustado, hora, historial.demandaMuyAlta);
 
-  // ETAPA 4: precio = acotado × (1 − descuento), en centavos × 10⁹, y el ÚNICO redondeo a centavos.
+  // ETAPA 4: beneficios del cliente; se aplica solo el mayor descuento de las reglas que cumple.
+  const listaReglas = Array.isArray(reglasCliente) ? reglasCliente : [];
+  const { evaluadas, aplicada, milesimas: milesimasDescuento } = evaluarBeneficios(
+    { fecha, cliente: datosCliente, historial },
+    listaReglas
+  );
+
+  // precio = acotado × (1 − descuento), en centavos × 10⁹, y el ÚNICO redondeo a centavos.
   // Con el techo de $55 el mayor valor intermedio es 5 500 × 10⁶ × 1 000 ≈ 5.5 × 10¹², muy por
   // debajo de Number.MAX_SAFE_INTEGER (≈ 9 × 10¹⁵). Se comprueba igual por si cambian los rangos.
   const precioEscalado = acotado * (1000 - milesimasDescuento);
@@ -295,12 +386,13 @@ export function calcularPrecio({ fecha, horaInicio, reservasConfirmadas30Dias = 
     precio: precioCentavos / 100,
     base: reglas.baseCentavos / 100,
     recargos: milesimasRecargos / 1000, // decimal: 0.35 = 35 %
-    descuento: milesimasDescuento / 1000, // decimal: 0.1 = 10 %
+    descuento: milesimasDescuento / 1000, // decimal: el de la regla aplicada (0.15 = 15 %), o 0
     subtotal: dividirRedondeando(subtotal, ESCALA_SUBTOTAL) / 100,
-    desglose: armarDesglose({ reglas, subtotal, historial, rango, acotado, milesimasDescuento }),
+    desglose: armarDesglose({ reglas, subtotal, historial, rango, acotado, aplicada }),
     comparaciones: resumirComparaciones(reglas),
     historial,
     rango,
+    beneficios: { evaluadas, aplicada },
     precioAntesDeDescuento: dividirRedondeando(acotado, ESCALA_AJUSTADO) / 100,
   };
 }
