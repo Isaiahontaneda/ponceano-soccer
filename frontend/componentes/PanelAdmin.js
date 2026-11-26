@@ -11,6 +11,7 @@ import { llamarApi } from "@/frontend/utilidades/api";
 const ENLACES = [
   { href: "/admin", texto: "Inicio", roles: null },
   { href: "/admin/tarifas", texto: "Tarifas", roles: ["ADMINISTRADOR"] },
+  { href: "/admin/reglas-cliente", texto: "Reglas de cliente", roles: ["ADMINISTRADOR"] },
   { href: "/admin/calculadora", texto: "Calculadora", roles: ["ADMINISTRADOR", "RECEPCIONISTA"] },
   { href: "/admin/usuarios", texto: "Usuarios", roles: ["ADMINISTRADOR"] },
   { href: "/admin/reservas", texto: "Reservas", roles: ["ADMINISTRADOR", "RECEPCIONISTA"] },

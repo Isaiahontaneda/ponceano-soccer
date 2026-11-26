@@ -12,6 +12,13 @@ const BLOQUES = bloquesHorarios();
 
 const NOMBRE_NIVEL = { ALTA: "Alta", NORMAL: "Normal", BAJA: "Baja", SIN_DATOS: "Sin datos" };
 
+const NOMBRE_TIPO_REGLA = {
+  TARJETA_SELLOS: "Tarjeta de sellos",
+  BIENVENIDA: "Bienvenida",
+  RESERVA_ANTICIPADA: "Reserva anticipada",
+  HORARIO_VALLE: "Horario valle",
+};
+
 // Porcentaje con signo: "+25 %", "−12.5 %" o "0 %".
 function conSigno(valor) {
   if (valor === 0) return "0 %";
@@ -74,12 +81,6 @@ function EtapaReglas({ resultado }) {
             ? comparaciones.calendario.reglas.map((r) => `«${r.nombre}»`).join(" + ")
             : "ese día no tiene recargo de día de la semana ni fecha especial"}
         </Regla>
-        <Regla aplicada={comparaciones.clienteFrecuente.aplicada} titulo="Comparación 3, cliente frecuente:">
-          {comparaciones.clienteFrecuente.aplicada
-            ? `«${comparaciones.clienteFrecuente.regla.nombre}» (se aplica en la etapa 4)`
-            : "no cumple el mínimo de reservas"}{" "}
-          ({resultado.reservasConfirmadas30Dias} reservas confirmadas en los 30 días previos)
-        </Regla>
       </ul>
     </section>
   );
@@ -91,7 +92,7 @@ function EtapaHistorial({ historial }) {
       <h2>2. Historial de demanda</h2>
       <div className="tabla-contenedor">
         <table className="tabla">
-          <caption className="solo-lectores">Comparaciones 4 y 5 con el historial</caption>
+          <caption className="solo-lectores">Comparaciones 3 y 4 con el historial</caption>
           <thead>
             <tr>
               <th scope="col">Comparación</th>
@@ -104,7 +105,7 @@ function EtapaHistorial({ historial }) {
             {historial.comparaciones.map((c, i) => (
               <tr key={c.clave}>
                 <td>
-                  {i + 4}. {c.nombre}
+                  {i + 3}. {c.nombre}
                 </td>
                 <td>{c.ocupacion === null ? "—" : `${porcentaje(c.ocupacion)} %`}</td>
                 <td>{textoMuestras(c)}</td>
@@ -141,14 +142,69 @@ function EtapaRango({ rango, precioAntesDeDescuento }) {
   );
 }
 
-function EtapaFinal({ resultado }) {
+// Comparación 5: una fila por regla, con su motivo. La aplicada se marca con texto, no solo con color.
+function TablaBeneficios({ beneficios }) {
+  const { evaluadas, aplicada } = beneficios;
+  if (evaluadas.length === 0) return <p>No hay reglas de cliente registradas.</p>;
+
+  return (
+    <div className="tabla-contenedor">
+      <table className="tabla">
+        <caption className="solo-lectores">Comparación 5: reglas de fidelidad del cliente</caption>
+        <thead>
+          <tr>
+            <th scope="col">Regla</th>
+            <th scope="col">Tipo</th>
+            <th scope="col">Descuento</th>
+            <th scope="col">Resultado</th>
+          </tr>
+        </thead>
+        <tbody>
+          {evaluadas.map((r) => {
+            const esAplicada = aplicada?.id === r.id;
+            return (
+              <tr key={r.id} className={esAplicada ? "reglas__si" : ""}>
+                <td>{r.nombre}</td>
+                <td>{NOMBRE_TIPO_REGLA[r.tipoCodigo] ?? r.tipoCodigo}</td>
+                <td>{conSigno(-porcentaje(r.descuento))}</td>
+                <td>
+                  <strong>{esAplicada ? "Aplica (se usa esta)" : r.aplica ? "Aplica (hay otra mayor)" : "No aplica"}</strong>
+                  : {r.motivo}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function EtapaBeneficios({ resultado }) {
+  const { cliente, beneficios } = resultado;
   return (
     <section className="tarjeta" aria-live="polite">
-      <h2>4. Descuento y precio final</h2>
-      <p>
-        Descuento de cliente frecuente:{" "}
-        <strong>{resultado.descuento > 0 ? conSigno(-porcentaje(resultado.descuento)) : "no aplica"}</strong>
-      </p>
+      <h2>4. Beneficios del cliente y precio final</h2>
+      {cliente === null ? (
+        <p>Sin cliente: no se evalúan beneficios.</p>
+      ) : (
+        <>
+          <p>
+            Reservas previas: <strong>{cliente.reservasPrevias}</strong> · Confirmadas desde el último sello:{" "}
+            <strong>{cliente.confirmadasDesdeUltimoSello}</strong> · Días de anticipación:{" "}
+            <strong>{cliente.diasAnticipacion}</strong>
+          </p>
+          <TablaBeneficios beneficios={beneficios} />
+          <p>
+            Los descuentos no se acumulan: se aplica solo el mayor. Descuento aplicado:{" "}
+            <strong>
+              {beneficios.aplicada
+                ? `${beneficios.aplicada.nombre} (${conSigno(-porcentaje(beneficios.aplicada.descuento))})`
+                : "ninguno"}
+            </strong>
+          </p>
+        </>
+      )}
       <p className="precio-grande">{dolares(resultado.precio)}</p>
     </section>
   );
@@ -266,7 +322,7 @@ export default function PaginaCalculadora() {
           <EtapaReglas resultado={resultado} />
           <EtapaHistorial historial={resultado.historial} />
           <EtapaRango rango={resultado.rango} precioAntesDeDescuento={resultado.precioAntesDeDescuento} />
-          <EtapaFinal resultado={resultado} />
+          <EtapaBeneficios resultado={resultado} />
         </>
       )}
     </div>

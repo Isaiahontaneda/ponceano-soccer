@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { bloquesHorarios } from "@/backend/configuracion";
 import { hoyEnNegocio } from "@/backend/fechas";
-import { dolares, fechaLegible, hora, NOMBRE_ESTADO } from "@/frontend/utilidades/formato";
+import { dolares, fechaLegible, hora, NOMBRE_ESTADO, porcentaje } from "@/frontend/utilidades/formato";
 import { llamarApi, mensajesDeError } from "@/frontend/utilidades/api";
 import Alertas from "@/frontend/componentes/Alertas";
 import Confirmacion from "@/frontend/componentes/Confirmacion";
@@ -21,6 +21,46 @@ function sePuedeCancelar(reserva, ahora) {
   );
 }
 
+// "Llevas 2 de 3 reservas: te falta 1 para tu 15 % de descuento"
+function textoSellos({ acumulados, necesarios, faltan, descuento }) {
+  const inicio = `Llevas ${acumulados} de ${necesarios} reservas`;
+  if (faltan === 0) return `${inicio}: tu próxima reserva tiene ${porcentaje(descuento)} % de descuento`;
+  return `${inicio}: te falta${faltan === 1 ? "" : "n"} ${faltan} para tu ${porcentaje(descuento)} % de descuento`;
+}
+
+// Beneficios del cliente: solo sus reglas y sus sellos (nunca datos de demanda).
+function TusBeneficios({ beneficios }) {
+  if (!beneficios) return null;
+  return (
+    <section className="tarjeta">
+      <h2>Tus beneficios</h2>
+      {beneficios.sellos && (
+        <p>
+          <strong>Tarjeta de sellos:</strong> {textoSellos(beneficios.sellos)}.
+        </p>
+      )}
+      {beneficios.reglas.length > 0 ? (
+        <ul>
+          {beneficios.reglas.map((r) => (
+            <li key={r.nombre}>
+              <strong>{r.nombre}:</strong> {r.descripcion}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p>Por ahora no hay beneficios disponibles.</p>
+      )}
+      <p className="campo__ayuda">Los descuentos no se acumulan: en cada reserva se aplica el mayor.</p>
+    </section>
+  );
+}
+
+// "Tarjeta de sellos (−15 %)", o "—" si la reserva no tuvo descuento.
+function textoDescuento(r) {
+  if (!(Number(r.descuento) > 0)) return "—";
+  return `${r.beneficio ?? "Descuento"} (−${porcentaje(r.descuento)} %)`;
+}
+
 function TablaMisReservas({ reservas, ahora, onCancelar }) {
   if (reservas.length === 0) return <p>Todavía no tienes reservas.</p>;
 
@@ -34,6 +74,7 @@ function TablaMisReservas({ reservas, ahora, onCancelar }) {
             <th scope="col">Hora</th>
             <th scope="col">Estado</th>
             <th scope="col">Precio</th>
+            <th scope="col">Descuento</th>
             <th scope="col">Acciones</th>
           </tr>
         </thead>
@@ -47,6 +88,7 @@ function TablaMisReservas({ reservas, ahora, onCancelar }) {
                 <span className={`etiqueta etiqueta--${r.estado}`}>{NOMBRE_ESTADO[r.estado]}</span>
               </td>
               <td>{dolares(r.precio)}</td>
+              <td>{textoDescuento(r)}</td>
               <td>
                 {sePuedeCancelar(r, ahora) ? (
                   <button
@@ -74,7 +116,8 @@ export default function PaginaReservar() {
   const [fecha, setFecha] = useState("");
   const [horaInicio, setHoraInicio] = useState("");
   const [disponibilidad, setDisponibilidad] = useState(null); // { libres, ocupados, pasados }
-  const [precio, setPrecio] = useState(null); // { precio }: el servidor no le envía el desglose al cliente
+  const [precio, setPrecio] = useState(null); // { precio, beneficio }: el servidor no le envía el desglose
+  const [beneficios, setBeneficios] = useState(null); // { sellos, reglas }
   const [reservas, setReservas] = useState([]);
   const [errores, setErrores] = useState([]);
   const [mensaje, setMensaje] = useState("");
@@ -97,6 +140,13 @@ export default function PaginaReservar() {
     }
     setAhora(hoyEnNegocio());
     setReservas(res.datos.reservas);
+  }, [irALogin]);
+
+  const cargarBeneficios = useCallback(async () => {
+    const res = await llamarApi("/api/mis-beneficios");
+    if (res.estado === 401) return irALogin();
+    if (res.ok) setBeneficios(res.datos);
+    else setErrores(mensajesDeError(res.datos, "No se pudieron cargar tus beneficios."));
   }, [irALogin]);
 
   const cargarDisponibilidad = useCallback(
@@ -122,13 +172,13 @@ export default function PaginaReservar() {
     // (Los setState ocurren después de esperar las respuestas, no de forma síncrona.)
     async function iniciar() {
       const hoy = hoyEnNegocio();
-      await Promise.all([cargarReservas(), cargarDisponibilidad(hoy.fecha)]);
+      await Promise.all([cargarReservas(), cargarDisponibilidad(hoy.fecha), cargarBeneficios()]);
       setAhora(hoy);
       setFecha(hoy.fecha);
       setCargando(false);
     }
     iniciar();
-  }, [cargarReservas, cargarDisponibilidad]);
+  }, [cargarReservas, cargarDisponibilidad, cargarBeneficios]);
 
   function elegirFecha(nuevaFecha) {
     // Al cambiar la fecha, la hora elegida deja de ser válida.
@@ -179,7 +229,7 @@ export default function PaginaReservar() {
       return;
     }
     setMensaje(`Reserva ${res.datos.reserva.codigo}: Pendiente de confirmación.`);
-    await Promise.all([cargarDisponibilidad(fecha), cargarReservas()]);
+    await Promise.all([cargarDisponibilidad(fecha), cargarReservas(), cargarBeneficios()]);
   }
 
   function pedirCancelacion(reserva) {
@@ -200,7 +250,7 @@ export default function PaginaReservar() {
     if (res.estado === 401) return irALogin();
     if (res.ok) setMensaje(`Reserva ${reserva.codigo}: cancelada.`);
     else setErrores(mensajesDeError(res.datos, "No se pudo cancelar la reserva."));
-    await Promise.all([cargarReservas(), cargarDisponibilidad(fecha)]);
+    await Promise.all([cargarReservas(), cargarDisponibilidad(fecha), cargarBeneficios()]);
   }
 
   if (cargando) return <p className="cargando">Cargando…</p>;
@@ -220,6 +270,8 @@ export default function PaginaReservar() {
       </div>
 
       <Alertas errores={errores} mensaje={mensaje} />
+
+      <TusBeneficios beneficios={beneficios} />
 
       <TarifasEstandar />
 
@@ -268,6 +320,12 @@ export default function PaginaReservar() {
           <>
             <p aria-live="polite">
               Precio por hora: <strong className="precio-grande">{dolares(precio.precio)}</strong>
+              {precio.beneficio && (
+                <>
+                  {" "}
+                  — Descuento aplicado: {precio.beneficio.nombre} (−{porcentaje(precio.beneficio.descuento)} %)
+                </>
+              )}
             </p>
             <button type="button" className="boton" onClick={reservar} disabled={guardando}>
               {guardando ? "Reservando…" : "Reservar"}

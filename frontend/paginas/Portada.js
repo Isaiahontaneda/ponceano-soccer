@@ -16,6 +16,12 @@ const MODULOS = [
     roles: ["ADMINISTRADOR"],
   },
   {
+    href: "/admin/reglas-cliente",
+    titulo: "Reglas de cliente",
+    texto: "Descuentos de fidelidad: sellos, bienvenida, anticipación y horario valle.",
+    roles: ["ADMINISTRADOR"],
+  },
+  {
     href: "/admin/calculadora",
     titulo: "Calculadora",
     texto: "Simula un precio y revisa su desglose.",
